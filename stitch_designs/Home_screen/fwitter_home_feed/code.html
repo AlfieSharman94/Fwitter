@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fwitter Home Feed</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0d59f2",
+                        "background-light": "#f5f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-white">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+<div class="flex items-center p-4 justify-between max-w-xl mx-auto">
+<div class="flex size-10 shrink-0 items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-primary/20" data-alt="User profile avatar with football jersey" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA-075iDTdyCHI-XHXh2dkrhfGT0m4z2LakJAQzc-QYJIqKMrTJ-m3KqXnyjSsjUXimLckPsJaftrHd1mW5V1LxnOxEzALMWjqBuCc3GOSeSuX2oeh279XCTgmFh5YgI99wGmnebV010Xdyi90p263BPRkea7jMymOp7w7Q5KDMoPMup9b8aBRn18OPqez0FwiD6CE7R8k-DR_cJZdwppkd1JcSHFb_RWq3PedVMdYOe5-NyD_ih3JBMDMp0Aihz9zSPll4L80GkTE");'>
+</div>
+</div>
+<div class="flex-1 flex justify-center">
+<span class="material-symbols-outlined text-primary text-3xl font-bold">sports_soccer</span>
+</div>
+<div class="flex w-10 items-center justify-end">
+<button class="flex items-center justify-center rounded-full size-10 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-gray-900 dark:text-white">settings</span>
+</button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="max-w-xl mx-auto">
+<div class="flex border-b border-gray-200 dark:border-gray-800 px-0">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-primary text-gray-900 dark:text-white pb-[13px] pt-4 flex-1 transition-colors" href="#">
+<p class="text-sm font-bold leading-normal tracking-tight">Squad</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4 flex-1 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors" href="#">
+<p class="text-sm font-bold leading-normal tracking-tight">12th Man</p>
+</a>
+</div>
+</div>
+</header>
+<main class="max-w-xl mx-auto pb-24">
+<!-- Feed Item 1 -->
+<div class="border-b border-gray-200 dark:border-gray-800 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+<div class="flex gap-3 px-4 py-4">
+<div class="shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-12 w-12" data-alt="Erling Haaland official profile photo" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA3ZvBKCWz1m7s5wqMb2QteqzivdjX-DpmBHy_qzdiLAiEG7cpYAIpr-lQ36UElkoaVRidAJqEo8uf-D1T9JfMsRYoevArTQ4vyMENoXUC-W1ZNGjwCDy-GesJuoN4WWCMO0KMC3rh3lH5DhZuW8P5W3xXfQxb1o0311l3BcWDnDVQv6PFd7I3anFauKiDkgOlfOql4sNEVtgUtpCxdKsnJkZMWWtfHW7nPyj4NyvxwQY36Wd0JfvOGL57Mv5KNZiMqmKQ4BT6N4tU");'></div>
+</div>
+<div class="flex flex-1 flex-col">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1">
+<p class="text-gray-900 dark:text-white text-base font-bold leading-none">Erling Haaland</p>
+<span class="material-symbols-outlined text-primary text-sm font-bold" style="font-variation-settings: 'FILL' 1">verified</span>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal">@haaland • 12m</p>
+</div>
+<span class="material-symbols-outlined text-gray-400 cursor-pointer">more_horiz</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base mt-1 leading-normal">
+                        Another 3 points at the Etihad! ⚽️🔥 The atmosphere was incredible today. We keep pushing. <span class="text-primary">#ManCity #PremierLeague</span>
+</p>
+<!-- Media Attachment -->
+<div class="mt-3 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
+<div class="aspect-video bg-cover bg-center" data-alt="Football stadium filled with fans cheering" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCDVZ9S4T_gZoyCqKbz0qsqnEXnfKsKu272YZrdwo-8qHqgvqUR9jlc1Lmo-q9s_Jl0sM9eZ99xfcfTbSCNr1oQTuhoEg-Rkm6_EpCkKpn-GBm0rslKtj6RGp3HqFhYzbljMOUlaTBG7wh22dRyRUwraPXyqmJpWY12tekHuhy-gXEkGw6w9m6Xyfi-yIPlq_jkKYMy8WTTzhP_Mzkv6Ic-86xErk2mkN1w3_cqqUDf1ya-rQ_E1-QioOaTB_-umhR30YMBA5rcs3Y");'>
+</div>
+</div>
+<!-- Reaction Bar -->
+<div class="flex justify-between mt-3 max-w-sm">
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">chat_bubble</span>
+</div>
+<span class="text-xs font-medium">422</span>
+</div>
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-green-500/10 group-hover:text-green-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">repeat</span>
+</div>
+<span class="text-xs font-medium">1.2k</span>
+</div>
+<div class="flex items-center gap-1 text-pink-600 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-pink-500/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1">favorite</span>
+</div>
+<span class="text-xs font-medium">15k</span>
+</div>
+<div class="flex items-center text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Feed Item 2 -->
+<div class="border-b border-gray-200 dark:border-gray-800 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+<div class="flex gap-3 px-4 py-4">
+<div class="shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-12 w-12" data-alt="Fabrizio Romano journalist profile" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCnGOng1ipFCmqJxiipzJsa-MSj12L5oE-vAK1Oap6DeMUtrDVqxaYx9LboblBppltpOAIEeaAdGChNwFIau55kEUHL0QEU0FzDn3_xZ0hrlfTaFuy2AA8a_87OCocV4ymEhdgDD7AqML7Un1LYxJQWkLbtYtAW94Q-nvNIYnoYCiNwSnYIF2tbrX-RQn5DI32Wn4oFXgrN48NUtEFrJVUQYEe77paPvKPvHv5amd38JP8bFqu52bprlAIacNQmlka2Wl5AwjdEqaM");'></div>
+</div>
+<div class="flex flex-1 flex-col">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1">
+<p class="text-gray-900 dark:text-white text-base font-bold leading-none">Fabrizio Romano</p>
+<span class="material-symbols-outlined text-primary text-sm font-bold" style="font-variation-settings: 'FILL' 1">verified</span>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal">@FabrizioRomano • 2h</p>
+</div>
+<span class="material-symbols-outlined text-gray-400 cursor-pointer">more_horiz</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base mt-1 leading-normal">
+                        Understand Kylian Mbappé has completed his move. Documents are signed. <span class="font-bold">Here we go!</span> 🏁🇫🇷 <span class="text-primary">#RealMadrid #Mbappe</span>
+</p>
+<!-- Reaction Bar -->
+<div class="flex justify-between mt-3 max-w-sm">
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">chat_bubble</span>
+</div>
+<span class="text-xs font-medium">8.9k</span>
+</div>
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-green-500/10 group-hover:text-green-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">repeat</span>
+</div>
+<span class="text-xs font-medium">45k</span>
+</div>
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-pink-500/10 group-hover:text-pink-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">favorite</span>
+</div>
+<span class="text-xs font-medium">120k</span>
+</div>
+<div class="flex items-center text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Feed Item 3 (Image Only Content) -->
+<div class="border-b border-gray-200 dark:border-gray-800 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+<div class="flex gap-3 px-4 py-4">
+<div class="shrink-0">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-12 w-12" data-alt="Premier League official logo profile" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCzCKP5yXy83IvtueqJZHcDVgXz-SVrMktODEGyIyD3NdieqmOO5sxA0CqlDOsSMJE20sgcEHzVX-D3jozE2uqJJnznDcte8UEuej5f2LwEJb_NFtsqwL_XoJ2dmg9Qrg1byy7NyJ882aJumPBkEHslfZNs6TbCneUIdIiFN0f3K18XuG4mjTM4UYQvDqkqIozkuilHCJmoAe9dvTYY2F_clsX76vi8npXBy4Y1uqbS51d-tVCqQjpa7eRnCty0HG19t4C4LVfdvhk");'></div>
+</div>
+<div class="flex flex-1 flex-col">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1">
+<p class="text-gray-900 dark:text-white text-base font-bold leading-none">Premier League</p>
+<span class="material-symbols-outlined text-primary text-sm font-bold" style="font-variation-settings: 'FILL' 1">verified</span>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal">@premierleague • 5h</p>
+</div>
+<span class="material-symbols-outlined text-gray-400 cursor-pointer">more_horiz</span>
+</div>
+<p class="text-gray-900 dark:text-white text-base mt-1 leading-normal">
+                        The race for the Golden Boot is heating up! ⚡️ Who are you backing this season?
+                    </p>
+<div class="mt-3 rounded-xl overflow-hidden grid grid-cols-2 gap-0.5 border border-gray-200 dark:border-gray-800">
+<div class="aspect-square bg-cover bg-center" data-alt="Footballer Erling Haaland celebration" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCnC2iCDc6LbIb-Uo6S-Qlz5Fo6kNC3-phcWbCnfAuDdUhlZti3HcANDpC1hy0ynF8h1MPKjZ79vLjtDsGS8ObHm1xhR-2q97fnUTaPflRDu4Xjtknqi7NAS-ngxvrQwGFiwgbSITBPu5Mls_rV1Y9bpiD_KawRk3VBq6phhdawudjcOsoLsxdoRDPVnA7J4NLJbElgcacE_Yc7iVzZ0icAo7ViXMYHS7sRRjDmJKDJit4EfFRRkpuVtfE5nRgL5CU0U39E__80tdI");'></div>
+<div class="aspect-square bg-cover bg-center" data-alt="Footballer Mo Salah celebration" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAVMvWqTP_mAMHKj6GlbMGKrpumuCRQgCoQveVkeXOyP2QEAUvSYsl3NfgoFJXsMJZz4R3vrwt4wkDMhw9tycISRASS5BhvzmeEbDqQpqN28r963C8ljqhncgPpZ6jbNOZd-sNUS2xmkolCfSX1DnCymRSNjaRlYSotyrZPRzyuYVDQNVR7lQZQMPa4exLV9S4sV7yoQoNgqgcGjDwNKUm9-Jkfg8FwTBQM1jK6if4X0QBV2RYNlRJRBASrgO_W-etpxkdrzjh88jI");'></div>
+</div>
+<div class="flex justify-between mt-3 max-w-sm">
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">chat_bubble</span>
+</div>
+<span class="text-xs font-medium">3.1k</span>
+</div>
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-green-500/10 group-hover:text-green-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">repeat</span>
+</div>
+<span class="text-xs font-medium">1.8k</span>
+</div>
+<div class="flex items-center gap-1 text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-pink-500/10 group-hover:text-pink-500 transition-colors">
+<span class="material-symbols-outlined text-[20px]">favorite</span>
+</div>
+<span class="text-xs font-medium">22k</span>
+</div>
+<div class="flex items-center text-gray-500 group cursor-pointer">
+<div class="p-2 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed bottom-24 right-4 size-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/30 z-40 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl">edit_square</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 bg-background-light dark:bg-background-dark border-t border-gray-200 dark:border-gray-800 pb-safe-area z-50">
+<div class="max-w-xl mx-auto flex justify-between px-6 py-3">
+<a class="flex flex-col items-center gap-1 text-gray-900 dark:text-white" href="#">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1">home</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-gray-500" href="#">
+<span class="material-symbols-outlined text-[28px]">search</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-gray-500 relative" href="#">
+<span class="material-symbols-outlined text-[28px]">notifications</span>
+<div class="absolute top-0 right-0 size-2 bg-primary rounded-full border-2 border-background-dark"></div>
+</a>
+<a class="flex flex-col items-center gap-1 text-gray-500" href="#">
+<span class="material-symbols-outlined text-[28px]">mail</span>
+</a>
+</div>
+<!-- iOS Home Indicator Spacing -->
+<div class="h-6"></div>
+</nav>
+</body></html>

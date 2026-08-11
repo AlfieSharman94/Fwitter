@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fwitter Team Selection Step 3 of 4</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0d59f2",
+                        "background-light": "#f5f6f8",
+                        "background-dark": "#101622",
+                        "surface-dark": "#1c2636",
+                        "border-dark": "#314368"
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen flex flex-col">
+<header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md">
+<div class="flex items-center p-4 pb-2 justify-between">
+<div class="text-slate-900 dark:text-white flex size-10 shrink-0 items-center justify-center cursor-pointer">
+<span class="material-symbols-outlined">arrow_back_ios_new</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Step 3 of 4</h2>
+<div class="size-10"></div>
+</div>
+<div class="px-4 pb-4">
+<div class="w-full bg-slate-200 dark:bg-border-dark h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full transition-all duration-500" style="width: 75%;"></div>
+</div>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto pb-32">
+<div class="px-4 pt-4">
+<h1 class="text-slate-900 dark:text-white tracking-tight text-3xl font-bold leading-tight mb-2">Who do you support?</h1>
+<p class="text-slate-600 dark:text-slate-400 text-base font-normal leading-relaxed">
+                Select your primary club to personalize your feed. You can follow other teams later.
+            </p>
+</div>
+<div class="px-4 py-6">
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="block w-full pl-12 pr-4 py-4 bg-white dark:bg-surface-dark border-none rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary transition-all shadow-sm" placeholder="Find your club, city or nickname" type="text"/>
+</div>
+</div>
+<div class="mb-8">
+<div class="px-4 flex justify-between items-center mb-4">
+<h3 class="font-bold text-lg">Top Leagues</h3>
+<button class="text-primary text-sm font-semibold">View all</button>
+</div>
+<div class="flex gap-4 overflow-x-auto px-4 hide-scrollbar">
+<div class="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer">
+<div class="size-16 rounded-2xl bg-white dark:bg-surface-dark p-3 flex items-center justify-center shadow-sm border border-transparent hover:border-primary transition-colors">
+<img alt="Premier League Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9Zf6cNl1pKxhZ52EOuoWm4k27dJPbwB2o9kVG6SCtbBPNCulRkak41ebxmOlEugJ--EfF1aQiL8CiRB-SjqT3h8omq7gqIZLsQds1hoHBgIZwUSU3JApyj6Cha5L2jAAEgIHqlVFK1fOaD5AVDA3lE5jCu4TZ53Ilh1-HVMLj4_PQPtursqP7wrdbVt_AEGCdkjU8QBqxm5qsEup_Ntv_n_HV6kiV6VOgZ-xtQYdM3HOaePL9kJVN3xL5Y8yKJ4JDA0PA5B__H0s"/>
+</div>
+<span class="text-xs font-medium text-center">PL</span>
+</div>
+<div class="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer">
+<div class="size-16 rounded-2xl bg-white dark:bg-surface-dark p-3 flex items-center justify-center shadow-sm border border-primary ring-2 ring-primary/20">
+<img alt="La Liga Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvNvTXp9xCcMBIh1eVNiW_frmjJsz3jyCjmGMuKrHOKDsRFQixOQR22MPW5wYIdtZGkup-9fNUEYYbxYPEKXfLdQwbLa0PLZVslu9X3PNX7J8BQzlB9FUBlQqZ4D92MdHSkKS8m8-tx121cIoDcXPeU78KhVLI8UOfcqAG1PtfmfFdwByiPJo3hSQ0yN67c_DDUHx-pYVBt_yAyg9B2zd1gsF9daZ6C8bOygxEQkIW5UG8V4JQyUgqv5KtuYhJPva5SEZ_FS7JIoA"/>
+</div>
+<span class="text-xs font-medium text-center text-primary">La Liga</span>
+</div>
+<div class="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer">
+<div class="size-16 rounded-2xl bg-white dark:bg-surface-dark p-3 flex items-center justify-center shadow-sm">
+<img alt="Serie A Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDipjBe9r6KZay313deqfdYZr2pU79NsxjAUVuRCzmjtZVrKmwUVXFKpmWacp3WQX3scBLjBaIi4oupUP8i40NStbBIfuxoq6Zxq5p4H0Z-rTbCV0eYYH_Fa3AvEnp-ncqCnTn-kf2Ka7e5uqCT2kjNTpbUUqQEUUh6XfUYvgMX8NAQRvh2UwO6pEaJuFjIDI7nbNYYoNc3uXyfacIxt4Lx9PJEPfjS9ET7NVM7xE8XfYzwCh568Oq_69UezHh5YZK3heFbZq4gXTc"/>
+</div>
+<span class="text-xs font-medium text-center">Serie A</span>
+</div>
+<div class="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer">
+<div class="size-16 rounded-2xl bg-white dark:bg-surface-dark p-3 flex items-center justify-center shadow-sm">
+<img alt="Bundesliga Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAECBVz77Nuv4XIf3WIqj685KAKTdJiHi7fHvXyvy1cVxPJlhhWNxR4sCaeUgLPt-l6cJditG2KdxbE56tP3dAv2buQn-AdowF5rjF02tkESHkx0LdKcPkJlAGM0VGyNlb2rEbBy-8dq0Hg8PjdniIxttiWNnRqfyhQ4qmP2GmB4G2UO311Wz5noZJqChwdjhVr11eJFIKolLl5iqZ9NPQvDZl934vbayc1x2GiVhvXkOGPcF2RioYAa5rPijaDwImsP1vNc786nrI"/>
+</div>
+<span class="text-xs font-medium text-center">Bundesliga</span>
+</div>
+<div class="flex flex-col items-center gap-2 min-w-[80px] cursor-pointer">
+<div class="size-16 rounded-2xl bg-white dark:bg-surface-dark p-3 flex items-center justify-center shadow-sm">
+<img alt="Ligue 1 Logo" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5f4my9nnZFJchPb-KDjpI2IItqZdQeGh0l-ZhhW4k_5_LrEOBaIOi1D8YC0cRS-kMUCpbFlNaM492TWW-WMjMa0cDvYJnkymFplAhIByZGDbRL0-BiMmHATDXMcvQzIIcQ7asc12z7aFUkJ4zDgvV9UEWPrqMiA1dh9NoU1Nuj6cu04vAo7Igfoc8o_PbV8WjVY05cKgR8QCi2tO4MOtx319sD0BYmuF2bxdXrzWC2peqniCAc0Io_rtOcnvs0JzO2FwA7Gt0CV8"/>
+</div>
+<span class="text-xs font-medium text-center">Ligue 1</span>
+</div>
+</div>
+</div>
+<div class="px-4 space-y-4">
+<h3 class="font-bold text-lg mb-4">Suggested Teams</h3>
+<div class="flex items-center p-4 bg-primary/10 border-2 border-primary rounded-2xl relative overflow-hidden">
+<div class="flex-shrink-0 size-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center overflow-hidden mr-4">
+<img alt="Real Madrid Club Crest" class="size-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_Ittyt73r7G_kJJj8z27VianuavgJm16y8zAOoYJT4guWMF1CrXROeY6zbmJpTrxyJJEhxzssPO2TqGj2djpOOhOLuK4rlJX9JDNMl53y5dG7uqmm_kOLJdZfx1EWTLssyRoVlu5K8y3PA1ESGG-lYOgzbRuyTisaPtll2dfsQMSs5NIsncW8TxSs5Y6hAOkHXqo8b1EXFi35w4Wl1M3PgAFahEGcLzYn0D8AHvGKXEtdO2jueD1s1ZCN0ScGUeeei_xZ1BN6ddM"/>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-slate-900 dark:text-white">Real Madrid CF</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">La Liga • Madrid, Spain</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-primary text-white text-[10px] uppercase font-black px-2 py-1 rounded">Primary</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1">check_circle</span>
+</div>
+</div>
+<div class="flex items-center p-4 bg-white dark:bg-surface-dark border border-slate-100 dark:border-border-dark rounded-2xl group cursor-pointer hover:border-primary/50 transition-colors">
+<div class="flex-shrink-0 size-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center overflow-hidden mr-4">
+<img alt="FC Barcelona Crest" class="size-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDRxmWo54fy8ye4kmOo1wBDvuKbx0qpfYXR04_7uUBQnY65m8FemKmLsROHfucoB5vJbBOE-qI20BT13F9WivbkHyjdViRx1KxQXnNtFMxV3IDDt5wuViWy439OjBjZ7G86hl8zcjgtHZB34-jDXvpSatFTIAe1mOSADMWbN1Se6_rw0nwJ9iW1-e6INElFC2Uz7UK8jvGHCaBdDmkRUwYRneKuxFnKgoeA9ECZjrZJR9Kz6EJI-vba52dwLQSiahXP6hNaPJoTPo"/>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-slate-900 dark:text-white">FC Barcelona</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">La Liga • Barcelona, Spain</p>
+</div>
+<div class="size-6 rounded-full border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center">
+</div>
+</div>
+<div class="flex items-center p-4 bg-white dark:bg-surface-dark border border-slate-100 dark:border-border-dark rounded-2xl group cursor-pointer hover:border-primary/50 transition-colors">
+<div class="flex-shrink-0 size-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center overflow-hidden mr-4">
+<img alt="Atletico Madrid Crest" class="size-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxPD0te9godrHvEebJgGg4Qgnvqe6gzIXPVdAvSNCHZQ76Sseuu_2kEIu903Z7tidb6HAwqDaMdUEz9GwkJTuaB7CDqOI8Ptl3Z1yIz5rGxTzoJ51YUUAf2spoMzbp-VH-trFNU4imCZfY0rrxDj7wqar3w0nBUVcAMJI8JV73UfKxu3jsE6NG6pJIW-xLOVi_k3Qn9nKCKzl2P2gjdCI54EtJvuS589T8vlL_du4f0FbDouzLkUfWd-x7sYkgj8nzytdW8FqzoRU"/>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-slate-900 dark:text-white">Atlético de Madrid</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">La Liga • Madrid, Spain</p>
+</div>
+<div class="size-6 rounded-full border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center">
+</div>
+</div>
+<div class="flex items-center p-4 bg-white dark:bg-surface-dark border border-slate-100 dark:border-border-dark rounded-2xl group cursor-pointer hover:border-primary/50 transition-colors">
+<div class="flex-shrink-0 size-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center overflow-hidden mr-4">
+<img alt="Sevilla FC Crest" class="size-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7sCcp2PLg53pvGJh1-o0oxkxSwxKI9xRA7fkUyoH36EIHrezJCuX4Lj1r69MYa_tRtM8pWiHDaUcxA0eSH6Y9WiIgMPoDeWEeYlTggN0WMKT9_6l5YHMDN_EVJaFk6RDE9IAsCMqaJ1xkklPlJE_DvRyoo3_DZOpIsU8hpbaPif8HBzpE9GpQ91LcS0F_rvfaXjj8kr_hwp49BWLnxZfz1BJZUtgig1Phe_angASO1BwKmc1q5C201Ip1LS-RISrJjG63gf3Fhpk"/>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-slate-900 dark:text-white">Sevilla FC</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">La Liga • Seville, Spain</p>
+</div>
+<div class="size-6 rounded-full border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center">
+</div>
+</div>
+<p class="text-center text-slate-500 dark:text-slate-500 text-sm pt-4">
+                Can't find your team? Try searching by city or nickname.
+            </p>
+</div>
+</main>
+<footer class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/95 dark:via-background-dark/95 to-transparent pb-10">
+<button class="w-full py-4 bg-primary text-white font-bold text-lg rounded-xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all">
+            Continue
+        </button>
+<div class="h-4"></div>
+</footer>
+
+</body></html>

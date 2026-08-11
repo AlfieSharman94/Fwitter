@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: fwitter-db
+    environment:
+      POSTGRES_USER: fwitter
+      POSTGRES_PASSWORD: fwitter_password
+      POSTGRES_DB: fwitter_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - fwitter_pgdata:/var/lib/postgresql/data
+
+volumes:
+  fwitter_pgdata:

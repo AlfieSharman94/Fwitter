@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fwitter Welcome &amp; Sign Up</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0d59f2",
+                        "background-light": "#f5f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: "Lexend", sans-serif;
+            min-height: max(884px, 100dvh);
+        }
+        .stadium-overlay {
+            background-image: linear-gradient(to bottom, rgba(16, 22, 34, 0.8), rgba(16, 22, 34, 1)), url(https://lh3.googleusercontent.com/aida-public/AB6AXuB9OUqGETqHH4Qk-e1SXHKYzEYzUvaoC49hXJ_UJeZEIFaQLxQnewRA-EjbrPWSlhR6xoot9gUTpH3rhKAI9KWD75QXThXiz3AzllKTC9VLS_ac5l-GRrPcljvXHyYzJQjU4Wd6Nlupuld89Puksf5LZ5SvbsCpKgOw2ai2TSHRpHqO2Ut4YYQCNIHSkN-qxA6hnXaYzZeH6gBEZ_8-aAHjiXRsMqmHOFMg-sZS-7LNZZkhDilndap3RV9lvKIEr6Q9haV7HEdKnik);
+            background-size: cover;
+            background-position: center;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-white font-display overflow-x-hidden">
+<div class="relative flex min-h-screen w-full flex-col justify-between stadium-overlay">
+<div class="flex flex-col items-center pt-20 px-4">
+<div class="mb-8">
+<div class="w-16 h-16 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-white text-5xl" style="font-variation-settings: 'FILL' 1, 'wght' 700;">sports_soccer</span>
+</div>
+</div>
+<div class="w-full max-w-[480px]">
+<h1 class="text-white tracking-tight text-[36px] font-bold leading-[1.1] px-4 text-left pb-3 pt-6">
+                    See what's happening in football right now.
+                </h1>
+<p class="text-[#90a4cb] text-lg font-medium px-4 pb-8">Join the global community of fans today.</p>
+</div>
+</div>
+<div class="flex flex-col items-center pb-12 w-full">
+<div class="flex flex-col w-full max-w-[480px] px-4 gap-4">
+<div class="flex flex-col gap-3 w-full">
+<button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-5 bg-primary text-white text-lg font-bold leading-normal tracking-tight w-full shadow-lg shadow-primary/30 transition-transform active:scale-95">
+<span class="truncate">Create account</span>
+</button>
+<div class="px-4">
+<p class="text-[#90a4cb] text-xs font-normal leading-tight pt-2 text-left">
+                            By signing up, you agree to our <span class="text-primary underline">Terms</span>, <span class="text-primary underline">Privacy Policy</span>, and <span class="text-primary underline">Cookie Use</span>.
+                        </p>
+</div>
+</div>
+<div class="pt-10 flex flex-col gap-4">
+<p class="text-white text-lg font-bold px-4">Already have an account?</p>
+<button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-12 px-5 bg-transparent border border-[#222f49] text-primary text-base font-bold leading-normal tracking-tight w-full hover:bg-white/5 transition-colors">
+<span class="truncate">Log in</span>
+</button>
+</div>
+</div>
+</div>
+<div class="h-8"></div>
+</div>
+<div class="fixed inset-0 pointer-events-none z-[-1] opacity-20">
+<div class="w-full h-full bg-center bg-no-repeat bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBH2oFow2dcXKj0Ar0JycIChDB6DVDMywpbvKL5rmFqk3rqSm-vHFy6IP7aQ5xG0_Cs7gR-D-wWbJjsMgp5oRSnPbgeuLtktgrEcbZqqGw_-S4gDnIhdHa441iwJz0qUZH5kB-_3rdy2TpKlFjOZJHhbzgREMc5Pfr4GhaCQd5-O_Jf-s7ycGr6cnhfl0XFHa_0ej42RimYzJY7_1-zn-Np76KjfIfnm-P2UZ2zGK6ftp7osFtlexAtZ981BFaslrCIRkYtv5DnWwE");'></div>
+</div>
+
+</body></html>

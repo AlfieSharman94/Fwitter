@@ -1,13 +1,13 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('topics')
 export class TopicsController {
   constructor(private readonly prisma: PrismaService) {}
 
+  // No auth guard: onboarding calls this before the account is confirmed/signed in
+  // (same reasoning as /auth/username-available and /auth/email-available).
   @Get('search')
-  @UseGuards(JwtAuthGuard)
   async search(@Query('q') q?: string) {
     const query = (q ?? '').trim();
 

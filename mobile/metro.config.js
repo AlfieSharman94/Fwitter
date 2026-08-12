@@ -22,28 +22,38 @@ config.resolver.resolveRequest = (context, realModuleName, platform, moduleName)
     resolved = null;
   }
   
-  // Check if the resolved path is the native module we want to replace
-  const isNativeModule = 
+  // Prefer the real native module whenever it actually resolved. It only fails to
+  // resolve in environments with no custom native modules (Expo Go) — a standalone
+  // or dev-client build (including EAS/TestFlight builds) has the real compiled
+  // module available and should always use it: it's the fast native SRP crypto
+  // implementation, vs. the JS polyfill below which does 2048-bit modular
+  // exponentiation synchronously on the JS thread and can block the app for a
+  // very long time during sign-in.
+  if (resolved) {
+    return resolved;
+  }
+
+  // Resolution failed — check if this is the native module we know how to polyfill
+  // for Expo Go (which can't load custom native modules at all).
+  const isNativeModule =
     realModuleName === '@aws-amplify/react-native/dist/cjs/nativeModule' ||
     realModuleName.includes('@aws-amplify/react-native/dist/cjs/nativeModule') ||
     (realModuleName.includes('@aws-amplify/react-native') && realModuleName.includes('nativeModule')) ||
     // Handle relative imports from within the package
-    (context.originModulePath && 
-     context.originModulePath.includes('@aws-amplify/react-native') && 
-     (realModuleName === '../nativeModule' || realModuleName === './nativeModule' || realModuleName.endsWith('/nativeModule'))) ||
-    // Check if resolved path points to the native module file
-    (resolved && resolved.filePath && resolved.filePath.includes('@aws-amplify/react-native') && resolved.filePath.includes('nativeModule.js'));
-  
+    (context.originModulePath &&
+     context.originModulePath.includes('@aws-amplify/react-native') &&
+     (realModuleName === '../nativeModule' || realModuleName === './nativeModule' || realModuleName.endsWith('/nativeModule')));
+
   if (isNativeModule) {
-    console.log('[Metro] Intercepting native module:', realModuleName, '-> polyfill');
+    console.log('[Metro] Native module unresolved (Expo Go?) — using JS polyfill:', realModuleName);
     return {
       filePath: path.resolve(__dirname, 'src/polyfills/native-module-proxy.js'),
       type: 'sourceFile',
     };
   }
-  
-  // Return the original resolution
-  return resolved || resolve(context, realModuleName, platform);
+
+  // Truly unresolved and not something we have a polyfill for — let it fail naturally.
+  return resolve(context, realModuleName, platform);
 };
 
 module.exports = config;

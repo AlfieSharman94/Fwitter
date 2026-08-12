@@ -65,15 +65,12 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      // Get profile (idempotent - returns existing if present, doesn't create if we don't have valid data)
-      // For onboarded users, profile should exist
+      // Read-only check: GET never creates a profile. Using POST here previously
+      // meant a signed-in user with no profile row yet (e.g. their account exists
+      // in Cognito but not in this environment's database) would have a garbage
+      // placeholder profile ("temp"/"temp") silently created for them.
       const profileResponse = await apiFetch("/users/me/profile", {
-        method: "POST",
-        body: JSON.stringify({
-          username: "temp",
-          displayName: "temp",
-          dateOfBirth: "2000-01-01",
-        }),
+        method: "GET",
       });
 
       const userId = profileResponse.user?.id;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -16,24 +16,49 @@ export default function UsernameScreen() {
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Guards against two problems from checking on every keystroke:
+  // 1. Requests can resolve out of order (e.g. the check for "jo" can finish after
+  //    the check for "john"), which previously let a stale response overwrite the
+  //    correct current result — a taken name could flash "available".
+  // 2. Firing a request per character is wasteful and was tied to the field
+  //    losing focus (see the debounce below).
+  const requestSeq = useRef(0);
+
   const checkUsername = useCallback(async (value: string) => {
     const trimmed = value.trim();
     if (trimmed.length < 2) {
       setUsernameAvailable(null);
+      setCheckingUsername(false);
       return;
     }
 
+    const seq = ++requestSeq.current;
     setCheckingUsername(true);
     try {
       const result = await apiFetch(`/auth/username-available?username=${encodeURIComponent(trimmed)}`, { auth: false });
+      if (seq !== requestSeq.current) return; // a newer request superseded this one
       setUsernameAvailable(result.available);
       setError(null);
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       setUsernameAvailable(null);
     } finally {
-      setCheckingUsername(false);
+      if (seq === requestSeq.current) setCheckingUsername(false);
     }
   }, []);
+
+  // Debounce: only check once the user pauses typing, instead of on every keystroke.
+  useEffect(() => {
+    const trimmed = username.trim();
+    if (trimmed.length < 2) {
+      setUsernameAvailable(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      checkUsername(trimmed);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [username, checkUsername]);
 
   const handleContinue = async () => {
     const trimmed = username.trim();
@@ -128,12 +153,10 @@ export default function UsernameScreen() {
                   onChangeText={(text) => {
                     setUsername(text);
                     setError(null);
-                    checkUsername(text);
                   }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   maxLength={30}
-                  editable={!checkingUsername}
                 />
                 {checkingUsername && <ActivityIndicator size="small" color={colors.accent2} />}
                 {usernameAvailable === true && !checkingUsername && (

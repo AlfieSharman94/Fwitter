@@ -29,7 +29,17 @@ export default function PersonalDetailsScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
+  // Entered in UK dd / mm / yyyy order (three separate fields), then assembled into
+  // the YYYY-MM-DD string the rest of this screen (and the backend) already expects.
+  const [dobDay, setDobDay] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobYear, setDobYear] = useState("");
+  const monthInputRef = React.useRef<TextInput>(null);
+  const yearInputRef = React.useRef<TextInput>(null);
+  const dateOfBirth =
+    dobDay.length === 2 && dobMonth.length === 2 && dobYear.length === 4
+      ? `${dobYear}-${dobMonth}-${dobDay}`
+      : "";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
@@ -98,15 +108,8 @@ export default function PersonalDetailsScreen() {
       return;
     }
 
-    if (!dateOfBirth.trim()) {
-      setError("Date of birth is required");
-      return;
-    }
-
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(dateOfBirth)) {
-      setError("Date of birth must be in YYYY-MM-DD format");
+    if (!dateOfBirth) {
+      setError("Please enter your full date of birth");
       return;
     }
 
@@ -249,14 +252,51 @@ export default function PersonalDetailsScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Date of birth</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.placeholder}
-                  value={dateOfBirth}
-                  onChangeText={setDateOfBirth}
-                />
-                <Text style={styles.dobHint}>YYYY-MM-DD · you must be 13 or older</Text>
+                <View style={styles.dobRow}>
+                  <TextInput
+                    style={[styles.input, styles.dobInputDay]}
+                    placeholder="DD"
+                    placeholderTextColor={colors.placeholder}
+                    value={dobDay}
+                    onChangeText={(text) => {
+                      const digits = text.replace(/[^0-9]/g, "");
+                      setDobDay(digits);
+                      if (digits.length === 2) monthInputRef.current?.focus();
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    textAlign="center"
+                  />
+                  <Text style={styles.dobSeparator}>/</Text>
+                  <TextInput
+                    ref={monthInputRef}
+                    style={[styles.input, styles.dobInputMonth]}
+                    placeholder="MM"
+                    placeholderTextColor={colors.placeholder}
+                    value={dobMonth}
+                    onChangeText={(text) => {
+                      const digits = text.replace(/[^0-9]/g, "");
+                      setDobMonth(digits);
+                      if (digits.length === 2) yearInputRef.current?.focus();
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    textAlign="center"
+                  />
+                  <Text style={styles.dobSeparator}>/</Text>
+                  <TextInput
+                    ref={yearInputRef}
+                    style={[styles.input, styles.dobInputYear]}
+                    placeholder="YYYY"
+                    placeholderTextColor={colors.placeholder}
+                    value={dobYear}
+                    onChangeText={(text) => setDobYear(text.replace(/[^0-9]/g, ""))}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    textAlign="center"
+                  />
+                </View>
+                <Text style={styles.dobHint}>DD / MM / YYYY · you must be 13 or older</Text>
               </View>
 
               {error && (
@@ -323,6 +363,11 @@ const styles = StyleSheet.create({
   },
   hintSlot: { minHeight: 16 },
   hint: { fontSize: 12.5, color: colors.textDim, fontFamily: fonts.body },
+  dobRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dobInputDay: { flex: 1 },
+  dobInputMonth: { flex: 1 },
+  dobInputYear: { flex: 1.5 },
+  dobSeparator: { fontSize: 18, color: colors.textDim, fontFamily: fonts.bodyMedium },
   dobHint: { fontSize: 12.5, color: colors.textFaint, fontFamily: fonts.body },
   passwordRow: { flexDirection: "row", gap: 16 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },

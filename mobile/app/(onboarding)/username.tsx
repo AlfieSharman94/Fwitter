@@ -117,15 +117,12 @@ export default function UsernameScreen() {
           <Pressable
             style={styles.backButton}
             onPress={() => {
-              try {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace("/(auth)/welcome");
-                }
-              } catch (e) {
-                router.replace("/(auth)/welcome");
-              }
+              // Always go to the login/register chooser from the first onboarding
+              // step, rather than router.back() — this is the very start of account
+              // creation, so there's nothing upstream worth returning to, and using
+              // back() here could land on whatever happened to be underneath in the
+              // navigation stack (including a stale onboarding screen).
+              router.replace("/(auth)/welcome");
             }}
           >
             <Ionicons name="chevron-back" size={22} color={colors.text} />

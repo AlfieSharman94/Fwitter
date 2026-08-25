@@ -44,6 +44,11 @@ export default function PersonalDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+  const [emailInvalid, setEmailInvalid] = useState(false);
+
+  // Same shape as the backend's /auth/email-available check, so "not a real email yet"
+  // never gets treated as "already registered" client-side either.
+  const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   useEffect(() => {
     // Load stored username
@@ -56,23 +61,49 @@ export default function PersonalDetailsScreen() {
     })();
   }, []);
 
+  // Same race-condition guard as the username field: ignore a response that arrives
+  // after a newer request has already been fired for a later keystroke.
+  const emailRequestSeq = React.useRef(0);
+
   const checkEmail = useCallback(async (value: string) => {
+    const seq = ++emailRequestSeq.current;
     const trimmed = value.trim().toLowerCase();
-    if (!trimmed.includes("@")) {
+    if (!EMAIL_FORMAT.test(trimmed)) {
+      // Not a complete email yet (e.g. still missing the ".com") — don't call the
+      // backend at all, and don't show "already registered" for an incomplete address.
       setEmailAvailable(null);
+      setEmailInvalid(trimmed.length > 0);
       return;
     }
+    setEmailInvalid(false);
 
     setCheckingEmail(true);
     try {
       const result = await apiFetch(`/auth/email-available?email=${encodeURIComponent(trimmed)}`, { auth: false });
-      setEmailAvailable(result.available);
+      if (seq !== emailRequestSeq.current) return; // a newer request superseded this one
+      // The backend also returns available:false for invalid_format as a defense-in-depth
+      // check — treat that the same as "not a real email" rather than "taken".
+      if (result.available === false && result.reason === "invalid_format") {
+        setEmailAvailable(null);
+        setEmailInvalid(true);
+      } else {
+        setEmailAvailable(result.available);
+      }
     } catch (e) {
+      if (seq !== emailRequestSeq.current) return;
       setEmailAvailable(null);
     } finally {
-      setCheckingEmail(false);
+      if (seq === emailRequestSeq.current) setCheckingEmail(false);
     }
   }, []);
+
+  // Debounce: only check once the user pauses typing, instead of on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkEmail(email);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [email, checkEmail]);
 
   const handleContinue = async () => {
     setError(null);
@@ -85,6 +116,11 @@ export default function PersonalDetailsScreen() {
 
     if (!email.trim()) {
       setError("Email is required");
+      return;
+    }
+
+    if (emailInvalid || !EMAIL_FORMAT.test(email.trim().toLowerCase())) {
+      setError("Enter a valid email address");
       return;
     }
 
@@ -203,10 +239,7 @@ export default function PersonalDetailsScreen() {
                   placeholder="you@example.com"
                   placeholderTextColor={colors.placeholder}
                   value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    checkEmail(text);
-                  }}
+                  onChangeText={setEmail}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -214,6 +247,8 @@ export default function PersonalDetailsScreen() {
                 <View style={styles.hintSlot}>
                   {checkingEmail ? (
                     <Text style={[styles.hint, { color: colors.accent2 }]}>Checking…</Text>
+                  ) : emailInvalid ? (
+                    <Text style={[styles.hint, { color: colors.danger }]}>Enter a valid email address</Text>
                   ) : emailAvailable === true ? (
                     <Text style={[styles.hint, { color: colors.accent }]}>Email available</Text>
                   ) : emailAvailable === false ? (

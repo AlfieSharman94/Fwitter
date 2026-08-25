@@ -11,6 +11,23 @@ const ONBOARDING_DATA_KEY = "fwitter.onboarding.data";
 const MIN_AGE = 13;
 const JUNIOR_MAX_AGE = 15; // 13–15 = JUNIOR, 16+ = STANDARD
 
+// Mirrors Cognito's default user pool password policy (8+ chars, upper, lower,
+// number, symbol). Checked here so a policy violation is caught immediately
+// instead of at the very last step of onboarding, after teams/topics are
+// already picked. NOTE: if this Cognito user pool's password policy has been
+// customized to something other than the default, update this to match —
+// check AWS Console → Cognito → user pool → Sign-in experience → Password policy.
+const PASSWORD_MIN_LENGTH = 8;
+function getPasswordIssues(pw: string): string[] {
+  const issues: string[] = [];
+  if (pw.length < PASSWORD_MIN_LENGTH) issues.push(`${PASSWORD_MIN_LENGTH}+ characters`);
+  if (!/[a-z]/.test(pw)) issues.push("a lowercase letter");
+  if (!/[A-Z]/.test(pw)) issues.push("an uppercase letter");
+  if (!/[0-9]/.test(pw)) issues.push("a number");
+  if (!/[^A-Za-z0-9]/.test(pw)) issues.push("a special character");
+  return issues;
+}
+
 // Full-date age calculation from Y/M/D components (avoids timezone parsing drift).
 // A user whose birthday is today counts as that age; tomorrow's birthday does not.
 function calculateAge(year: number, month: number, day: number): number {
@@ -139,8 +156,9 @@ export default function PersonalDetailsScreen() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+    const passwordIssues = getPasswordIssues(password);
+    if (passwordIssues.length > 0) {
+      setError(`Password needs ${passwordIssues.join(", ")}`);
       return;
     }
 
@@ -195,7 +213,8 @@ export default function PersonalDetailsScreen() {
       : emailAvailable === false
         ? colors.danger
         : colors.border;
-  const pwShort = password.length > 0 && password.length < 8;
+  const passwordIssues = password.length > 0 ? getPasswordIssues(password) : [];
+  const pwShort = passwordIssues.length > 0;
   const confErr = confirmPassword.length > 0 && confirmPassword !== password;
 
   return (
@@ -262,7 +281,7 @@ export default function PersonalDetailsScreen() {
                   <Text style={styles.label}>Password</Text>
                   <TextInput
                     style={[styles.input, pwShort && { borderColor: colors.danger }]}
-                    placeholder="Min 8 characters"
+                    placeholder="8+ chars, mixed case, number, symbol"
                     placeholderTextColor={colors.placeholder}
                     value={password}
                     onChangeText={setPassword}
@@ -282,7 +301,7 @@ export default function PersonalDetailsScreen() {
                   />
                 </View>
               </View>
-              {pwShort && <Text style={styles.hint}>Password must be at least 8 characters</Text>}
+              {pwShort && <Text style={styles.hint}>Password needs {passwordIssues.join(", ")}</Text>}
               {confErr && <Text style={[styles.hint, { color: colors.danger }]}>Passwords don’t match</Text>}
 
               <View style={styles.inputGroup}>

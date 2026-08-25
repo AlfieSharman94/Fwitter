@@ -11,6 +11,7 @@ type AuthState = {
   signIn: (usernameOrEmail: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   checkOnboarding: () => Promise<boolean>;
+  refreshAuthState: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -139,6 +140,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const onboarded = await checkOnboardingStatus();
         setIsOnboarded(onboarded);
         return onboarded;
+      },
+      // Re-syncs isSignedIn/isOnboarded with reality. The onboarding screens
+      // (topics.tsx, confirm-signup.tsx) sign in via the raw auth.ts functions
+      // directly rather than this context's signIn() above, so without this,
+      // this context still thinks the user is signed out right after they
+      // finish onboarding — and the navigation gate in _layout.tsx bounces
+      // them back out past the screen they just completed. Call this once,
+      // right before navigating away, after onboarding finishes.
+      refreshAuthState: async () => {
+        const user = await bootstrapAuth();
+        if (user) {
+          setSignedIn(true);
+          const onboarded = await checkOnboardingStatus();
+          setIsOnboarded(onboarded);
+        } else {
+          setSignedIn(false);
+          setIsOnboarded(null);
+        }
       },
     }),
     [isBootstrapping, isSignedIn, isOnboarded]

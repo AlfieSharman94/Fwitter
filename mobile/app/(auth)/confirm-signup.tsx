@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { doConfirmSignUp, doSignIn } from "../../src/auth/auth";
-import { apiFetch } from "../../src/api/client";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { completeOnboardingProfile } from "../../src/onboarding/completeProfile";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
@@ -12,6 +13,7 @@ const ONBOARDING_DATA_KEY = "fwitter.onboarding.data";
 
 export default function ConfirmSignUpScreen() {
   const router = useRouter();
+  const { refreshAuthState } = useAuth();
   const params = useLocalSearchParams<{ email?: string }>();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,8 +34,18 @@ export default function ConfirmSignUpScreen() {
     setError(null);
     setBusy(true);
     try {
-      // 1. Confirm sign up with the entered code
-      await doConfirmSignUp(email, code.trim());
+      // 1. Confirm sign up with the entered code. If a previous attempt already
+      // confirmed this account (e.g. it succeeded but a later step failed and
+      // the user retried), Cognito rejects a second confirm — treat that as
+      // success rather than an error, since the end state is what we want.
+      try {
+        await doConfirmSignUp(email, code.trim());
+      } catch (confirmError: any) {
+        const alreadyConfirmed =
+          confirmError?.name === "NotAuthorizedException" &&
+          /confirmed/i.test(confirmError?.message ?? "");
+        if (!alreadyConfirmed) throw confirmError;
+      }
 
       // 2. Read onboarding data — all fields live under fwitter.onboarding.data
       const stored = await SecureStore.getItemAsync(ONBOARDING_DATA_KEY);
@@ -45,41 +57,18 @@ export default function ConfirmSignUpScreen() {
       // 3. Auto sign in
       await doSignIn(onboardingData.email, onboardingData.password);
 
-      // 4. Create profile
-      await apiFetch("/users/me/profile", {
-        method: "POST",
-        body: JSON.stringify({
-          username: onboardingData.username,
-          displayName: onboardingData.displayName,
-          dateOfBirth: onboardingData.dateOfBirth,
-          ageTier: onboardingData.ageTier,
-        }),
-      });
+      // 4-7. Create profile, set teams/topics, mark onboarding complete
+      await completeOnboardingProfile(onboardingData);
 
-      // 5. Set teams
-      await apiFetch("/users/me/teams", {
-        method: "PUT",
-        body: JSON.stringify({
-          primaryTeamId: onboardingData.primaryTeamId,
-          teamIds: onboardingData.teamIds || [onboardingData.primaryTeamId],
-        }),
-      });
+      // 8. Sync this context's signed-in/onboarded state with reality — without
+      // this the navigation gate still thinks we're signed out and bounces us
+      // back out right after we finish.
+      await refreshAuthState();
 
-      // 6. Set topics
-      await apiFetch("/users/me/topics", {
-        method: "PUT",
-        body: JSON.stringify({
-          topicIds: onboardingData.topicIds || [],
-        }),
-      });
-
-      // 7. Complete onboarding
-      await apiFetch("/users/me/onboarding/complete", { method: "POST" });
-
-      // 8. Clean up
+      // 9. Clean up
       await SecureStore.deleteItemAsync(ONBOARDING_DATA_KEY);
 
-      // 9. Done
+      // 10. Done
       router.replace("/welcome-success");
     } catch (e: any) {
       const errorName = e?.name;

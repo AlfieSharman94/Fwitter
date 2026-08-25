@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -22,6 +22,23 @@ export default function TeamSelectionScreen() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Restore a previously-made pick if the user navigated back into this screen
+  // (e.g. to fix something on an earlier step) instead of losing it.
+  useEffect(() => {
+    (async () => {
+      const stored = await SecureStore.getItemAsync(ONBOARDING_DATA_KEY);
+      if (!stored) return;
+      const data = JSON.parse(stored);
+      if (data.primaryTeamId && data.primaryTeamName) {
+        setSelectedTeam({
+          id: data.primaryTeamId,
+          name: data.primaryTeamName,
+          logo_url: data.primaryTeamLogoUrl ?? null,
+        });
+      }
+    })();
+  }, []);
 
   const searchTeams = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -55,6 +72,7 @@ export default function TeamSelectionScreen() {
       ...existingData,
       primaryTeamId: selectedTeam.id,
       primaryTeamName: selectedTeam.name,
+      primaryTeamLogoUrl: selectedTeam.logo_url,
       teamIds: [selectedTeam.id], // Start with just primary team
     }));
 

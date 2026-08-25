@@ -150,6 +150,15 @@ export async function doConfirmSignUp(username: string, confirmationCode: string
   });
 }
 
+/** Re-sends the sign-up confirmation code — used to resume a signup that was
+ *  started earlier (Cognito account exists but was never confirmed) instead
+ *  of dead-ending on "an account with this email already exists". */
+export async function doResendSignUpCode(username: string) {
+  await ensureAmplifyConfigured();
+  const { resendSignUpCode } = await getAuth();
+  return resendSignUpCode({ username });
+}
+
 export async function doUpdatePassword(oldPassword: string, newPassword: string) {
   await ensureAmplifyConfigured();
   const { updatePassword } = await getAuth();

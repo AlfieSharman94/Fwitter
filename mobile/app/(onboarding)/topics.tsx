@@ -1,11 +1,13 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
-import { doSignUp, doSignIn } from "../../src/auth/auth";
+import { doSignUp, doSignIn, doResendSignUpCode } from "../../src/auth/auth";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { completeOnboardingProfile } from "../../src/onboarding/completeProfile";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 const ONBOARDING_DATA_KEY = "fwitter.onboarding.data";
@@ -19,6 +21,7 @@ type Topic = {
 
 export default function TopicsScreen() {
   const router = useRouter();
+  const { refreshAuthState } = useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -26,6 +29,23 @@ export default function TopicsScreen() {
   const [selectedTopicsMap, setSelectedTopicsMap] = useState<Map<string, Topic>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Restore previously-picked topics if the user navigated back into this screen
+  // (e.g. to fix something on an earlier step) instead of losing the selection.
+  // The full topic objects (not just ids) are kept in SecureStore precisely so
+  // the chips can be redrawn here without another network round-trip.
+  useEffect(() => {
+    (async () => {
+      const stored = await SecureStore.getItemAsync(ONBOARDING_DATA_KEY);
+      if (!stored) return;
+      const data = JSON.parse(stored);
+      const savedTopics: Topic[] = data.topicsSelected ?? [];
+      if (savedTopics.length > 0) {
+        setSelectedTopicIds(new Set(savedTopics.map((t) => t.id)));
+        setSelectedTopicsMap(new Map(savedTopics.map((t) => [t.id, t])));
+      }
+    })();
+  }, []);
 
   const searchTopics = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -59,59 +79,63 @@ export default function TopicsScreen() {
       }
       const onboardingData = JSON.parse(stored);
 
-      // Step 1: Sign up with Cognito
-      const signUpResult = await doSignUp(onboardingData.email, onboardingData.password);
-
-      // Step 2: If confirmation required, navigate to confirm screen
-      if (signUpResult.nextStep?.signUpStep === "CONFIRM_SIGN_UP") {
-        // Store all data for after confirmation
-        await SecureStore.setItemAsync(ONBOARDING_DATA_KEY, JSON.stringify({
+      const saveForConfirm = () =>
+        SecureStore.setItemAsync(ONBOARDING_DATA_KEY, JSON.stringify({
           ...onboardingData,
           topicIds,
           needsConfirmation: true,
         }));
-        router.push({
-          pathname: "/(auth)/confirm-signup",
-          params: { email: onboardingData.email },
-        });
-        return;
+
+      // Step 1: Sign up with Cognito
+      try {
+        const signUpResult = await doSignUp(onboardingData.email, onboardingData.password);
+
+        // Step 2: If confirmation required, navigate to confirm screen
+        if (signUpResult.nextStep?.signUpStep === "CONFIRM_SIGN_UP") {
+          await saveForConfirm();
+          router.push({
+            pathname: "/(auth)/confirm-signup",
+            params: { email: onboardingData.email },
+          });
+          return;
+        }
+      } catch (signUpError: any) {
+        if (signUpError?.name !== "UsernameExistsException") throw signUpError;
+
+        // This email already has a Cognito account — from an earlier attempt
+        // that didn't finish (network blip, app closed mid-signup, etc), or
+        // from someone else. Figure out which before giving up: try signing
+        // in with the password just entered.
+        try {
+          await doSignIn(onboardingData.email, onboardingData.password);
+          // Signed in fine — it's our own earlier attempt, already confirmed.
+          // Fall through below to (re-)create the profile.
+        } catch (signInError: any) {
+          if (
+            signInError?.name === "UserNotConfirmedException" ||
+            signInError?.message === "Please verify your email address"
+          ) {
+            // Our own earlier attempt, never confirmed — resend the code and
+            // resume there instead of dead-ending.
+            await doResendSignUpCode(onboardingData.email);
+            await saveForConfirm();
+            router.push({
+              pathname: "/(auth)/confirm-signup",
+              params: { email: onboardingData.email },
+            });
+            return;
+          }
+          throw new Error(
+            "An account with this email already exists. Sign in instead, or use a different email."
+          );
+        }
       }
 
-      // Step 3: Auto-confirmed - sign in and create profile
+      // Auto-confirmed signup, or a resumed already-confirmed attempt — sign in
+      // (harmless if already signed in from the resume path above) and finish.
       await doSignIn(onboardingData.email, onboardingData.password);
-
-      // Step 4: Create profile
-      await apiFetch("/users/me/profile", {
-        method: "POST",
-        body: JSON.stringify({
-          username: onboardingData.username,
-          displayName: onboardingData.displayName,
-          dateOfBirth: onboardingData.dateOfBirth,
-          ageTier: onboardingData.ageTier,
-        }),
-      });
-
-      // Step 5: Set teams
-      await apiFetch("/users/me/teams", {
-        method: "PUT",
-        body: JSON.stringify({
-          primaryTeamId: onboardingData.primaryTeamId,
-          teamIds: onboardingData.teamIds || [onboardingData.primaryTeamId],
-        }),
-      });
-
-      // Step 6: Set topics
-      await apiFetch("/users/me/topics", {
-        method: "PUT",
-        body: JSON.stringify({
-          topicIds,
-        }),
-      });
-
-      // Step 7: Complete onboarding
-      await apiFetch("/users/me/onboarding/complete", {
-        method: "POST",
-      });
+      await completeOnboardingProfile({ ...onboardingData, topicIds });
+      await refreshAuthState();
 
       // Clean up
       await SecureStore.deleteItemAsync(ONBOARDING_DATA_KEY);
@@ -142,6 +166,17 @@ export default function TopicsScreen() {
     setSelectedTopicIds(newSet);
     setSelectedTopicsMap(newMap);
     setError(null);
+
+    // Write-through so a selection survives navigating away and back (see the
+    // hydration effect above).
+    (async () => {
+      const stored = await SecureStore.getItemAsync(ONBOARDING_DATA_KEY);
+      const existingData = stored ? JSON.parse(stored) : {};
+      await SecureStore.setItemAsync(ONBOARDING_DATA_KEY, JSON.stringify({
+        ...existingData,
+        topicsSelected: Array.from(newMap.values()),
+      }));
+    })();
   };
 
   return (

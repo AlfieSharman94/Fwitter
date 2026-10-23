@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { leagues, extraTopics } from "./seed-data/teams.mjs";
 
 const prisma = new PrismaClient();
 
@@ -41,24 +42,20 @@ const topics = [
   { name: "Tactics", description: "Systems, analysis, coaching" },
 ];
 
-async function upsertTeam(name) {
+// Creates a club or refreshes its league/country label (promotion and relegation
+// move the label, never remove the club). Logos are filled by the fixtures sync.
+async function upsertTeam({ name, league, country }) {
   const existing = await prisma.teams.findFirst({
     where: { name: { equals: name, mode: "insensitive" } },
-    select: { id: true },
+    select: { id: true, league: true, country: true },
   });
-  if (existing) return;
-
-  // Create with only the columns we know exist from your schema conventions.
-  // If your teams table has extra NOT NULL columns, we'll handle that next.
-  await prisma.teams.create({
-    data: {
-      name,
-      logo_url: null,
-      city: null,
-      country: null,
-      league: null, // if this column doesn't exist Prisma will error; we'll adjust instantly
-    },
-  });
+  if (existing) {
+    if (existing.league !== league || existing.country !== country) {
+      await prisma.teams.update({ where: { id: existing.id }, data: { league, country } });
+    }
+    return;
+  }
+  await prisma.teams.create({ data: { name, league, country, logo_url: null, city: null } });
 }
 
 async function upsertTopic(tp) {
@@ -108,8 +105,11 @@ async function promoteAdmins() {
 }
 
 async function main() {
-  for (const t of teams) await upsertTeam(t.name);
-  for (const tp of topics) await upsertTopic(tp);
+  // The original 15 stay in the file for reference; the league lists are the source of truth.
+  for (const { country, league, teams: names } of leagues) {
+    for (const name of names) await upsertTeam({ name, league, country });
+  }
+  for (const tp of [...topics, ...extraTopics]) await upsertTopic(tp);
   await prisma.banned_words.createMany({
     data: bannedWords.map((word) => ({ word: word.toLowerCase() })),
     skipDuplicates: true,

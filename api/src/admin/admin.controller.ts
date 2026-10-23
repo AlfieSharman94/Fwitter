@@ -103,6 +103,18 @@ export class AdminController {
     return this.admin.unban(await this.actor(user), id, dto.note);
   }
 
+  @Post('users/:id/verify')
+  @Roles('ADMIN')
+  async verify(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    return this.admin.setVerified(await this.actor(user), id, true);
+  }
+
+  @Post('users/:id/unverify')
+  @Roles('ADMIN')
+  async unverify(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    return this.admin.setVerified(await this.actor(user), id, false);
+  }
+
   @Post('users/:id/role')
   @Roles('ADMIN')
   async setRole(@CurrentUser() user: { sub: string }, @Param('id') id: string, @Body() dto: SetRoleDto) {

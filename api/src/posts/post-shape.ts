@@ -21,7 +21,7 @@ function basePostSelect(viewerId: string) {
     like_count: true,
     reply_count: true,
     repost_count: true,
-    users: { select: { username: true, display_name: true, profile_image_url: true } },
+    users: { select: { username: true, display_name: true, profile_image_url: true, verified_at: true } },
     post_teams: { select: { teams: { select: { id: true, name: true } } } },
     post_topics: { select: { topics: { select: { id: true, name: true } } } },
     post_mentions: { select: { users: { select: { id: true, username: true } } } },

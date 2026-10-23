@@ -14,6 +14,7 @@ type UserProfile = {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  isVerified: boolean;
   followersCount: number;
   followingCount: number;
 };
@@ -86,6 +87,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
         username: fullProfile.username,
         displayName: fullProfile.displayName,
         avatarUrl: fullProfile.avatarUrl,
+        isVerified: !!fullProfile.isVerified,
         followersCount: fullProfile.followersCount,
         followingCount: fullProfile.followingCount,
       });
@@ -149,7 +151,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
             <View style={styles.profileInfo}>
               <View style={styles.profileNameRow}>
                 <Text style={styles.profileName}>{profile?.displayName || "Loading…"}</Text>
-                <Ionicons name="checkmark-circle" size={16} color={colors.accent2} />
+                {profile?.isVerified && <Ionicons name="checkmark-circle" size={16} color={colors.accent2} />}
               </View>
               <Text style={styles.profileUsername}>@{profile?.username || "…"}</Text>
             </View>

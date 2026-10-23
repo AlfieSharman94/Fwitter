@@ -37,6 +37,7 @@ export class UsersController {
     created_at: true,
     bio: true,
     profile_image_url: true,
+    verified_at: true,
   } as const;
 
   @Get('me/profile')

@@ -51,7 +51,7 @@ export default function Users() {
             <tr key={u.id} className="clickable" onClick={() => navigate(`/users/${u.id}`)}>
               <td><b>@{u.username}</b><br /><span className="muted">{u.display_name}</span></td>
               <td className="muted">{u.email}</td>
-              <td><span className={`pill ${u.role}`}>{u.role}</span></td>
+              <td><span className={`pill ${u.role}`}>{u.role}</span>{u.verified_at && <span className="pill verified">verified</span>}</td>
               <td><span className={`pill ${userStatus(u)}`}>{userStatus(u)}</span></td>
               <td className="muted">{u.age_tier}</td>
               <td>{u.reports_received}</td>

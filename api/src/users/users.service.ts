@@ -124,6 +124,7 @@ export class UsersService {
     isSelf: boolean;
     isBlocked: boolean;
     hasBlockedMe: boolean;
+    isVerified: boolean;
   }> {
     const targetUser = await this.prisma.users.findUnique({
       where: { id: targetId },
@@ -133,6 +134,7 @@ export class UsersService {
         display_name: true,
         profile_image_url: true,
         created_at: true,
+        verified_at: true,
       },
     });
     if (!targetUser) {
@@ -182,6 +184,7 @@ export class UsersService {
       isSelf,
       isBlocked,
       hasBlockedMe,
+      isVerified: !!targetUser.verified_at,
     };
   }
 
@@ -194,6 +197,7 @@ export class UsersService {
       username: string;
       displayName: string;
       avatarUrl: string | null;
+      isVerified: boolean;
       isFollowing: boolean;
     }>
   > {
@@ -210,6 +214,7 @@ export class UsersService {
             username: true,
             display_name: true,
             profile_image_url: true,
+            verified_at: true,
           },
         },
       },
@@ -233,6 +238,7 @@ export class UsersService {
       username: f.users_follows_follower_idTousers.username,
       displayName: f.users_follows_follower_idTousers.display_name,
       avatarUrl: f.users_follows_follower_idTousers.profile_image_url,
+      isVerified: !!f.users_follows_follower_idTousers.verified_at,
       isFollowing: followingMap.get(f.users_follows_follower_idTousers.id) ?? false,
     }));
   }
@@ -246,6 +252,7 @@ export class UsersService {
       username: string;
       displayName: string;
       avatarUrl: string | null;
+      isVerified: boolean;
       isFollowing: boolean;
     }>
   > {
@@ -262,6 +269,7 @@ export class UsersService {
             username: true,
             display_name: true,
             profile_image_url: true,
+            verified_at: true,
           },
         },
       },
@@ -285,6 +293,7 @@ export class UsersService {
       username: f.users_follows_following_idTousers.username,
       displayName: f.users_follows_following_idTousers.display_name,
       avatarUrl: f.users_follows_following_idTousers.profile_image_url,
+      isVerified: !!f.users_follows_following_idTousers.verified_at,
       isFollowing: followingMap.get(f.users_follows_following_idTousers.id) ?? false,
     }));
   }

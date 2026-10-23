@@ -1,13 +1,13 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { FeedPost } from "../feed/feedTypes";
-import { toggleBookmark, toggleLike, type PatchPost } from "../feed/engagement";
-import { colors, fonts } from "../theme/theme";
+import type { FeedPost, FeedPostBase, FeedPostQuoting } from "../feed/feedTypes";
+import { toggleBookmark, toggleLike, toggleRepost, type PatchPost } from "../feed/engagement";
+import { colors, fonts, radii } from "../theme/theme";
 
 type Props = {
   post: FeedPost;
-  // Applies like/bookmark changes to the list that owns this post.
+  // Applies like/bookmark/repost changes to the list that owns this post.
   onPatch: PatchPost;
   // Tapping the card opens the post. Off for the main post on its own screen.
   pressable?: boolean;
@@ -19,24 +19,44 @@ type Props = {
 
 export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDelete }: Props) {
   const router = useRouter();
-  const teams = post.post_teams.map((x) => x.teams.name);
-  const topics = post.post_topics.map((x) => x.topics.name);
-  const timeAgo = getTimeAgo(new Date(post.created_at));
+  // A plain repost is a wrapper row: show the original and credit the reposter above it.
+  // Every action below targets `shown`, never the wrapper.
+  const shown: FeedPostQuoting = post.repost_of ?? post;
+  const repostedBy = post.repost_of ? post.users : null;
+  const teams = shown.post_teams.map((x) => x.teams.name);
+  const topics = shown.post_topics.map((x) => x.topics.name);
+  const timeAgo = getTimeAgo(new Date(shown.created_at));
 
-  const openPost = () => router.push(`/posts/${post.id}`);
-  const openAuthor = () => router.push(`/users/${post.author_id}`);
+  const openPost = () => router.push(`/posts/${shown.id}`);
+  const openAuthor = () => router.push(`/users/${shown.author_id}`);
   const replyAction = onReplyPress ?? (pressable ? openPost : undefined);
+
+  const onRepostPress = () => {
+    const undo = shown.reposted_by_me;
+    Alert.alert(undo ? "Undo repost?" : "Repost", undefined, [
+      { text: undo ? "Undo repost" : "Repost", onPress: () => toggleRepost(shown, onPatch) },
+      { text: "Quote", onPress: () => router.push({ pathname: "/compose", params: { quote: shown.id } }) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
 
   return (
     <Pressable style={styles.postCard} onPress={pressable ? openPost : undefined}>
+      {repostedBy && (
+        <Pressable style={styles.repostHeader} onPress={() => router.push(`/users/${post.author_id}`)} hitSlop={6}>
+          <Ionicons name="repeat" size={14} color={colors.textDim} />
+          <Text style={styles.repostHeaderText}>{repostedBy.display_name} reposted</Text>
+        </Pressable>
+      )}
+
       <View style={styles.postContentWrapper}>
         <Pressable onPress={openAuthor} style={styles.avatarContainer}>
-          {post.users.profile_image_url ? (
-            <Image source={{ uri: post.users.profile_image_url }} style={styles.avatar} />
+          {shown.users.profile_image_url ? (
+            <Image source={{ uri: shown.users.profile_image_url }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarText}>
-                {post.users.display_name?.charAt(0)?.toUpperCase() || "?"}
+                {shown.users.display_name?.charAt(0)?.toUpperCase() || "?"}
               </Text>
             </View>
           )}
@@ -45,9 +65,9 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
         <View style={styles.postMain}>
           <View style={styles.postHeader}>
             <Pressable onPress={openAuthor} style={styles.postHeaderLeft}>
-              <Text style={styles.postAuthor}>{post.users.display_name}</Text>
+              <Text style={styles.postAuthor}>{shown.users.display_name}</Text>
               <Ionicons name="checkmark-circle" size={14} color={colors.accent2} />
-              <Text style={styles.postUsername}>@{post.users.username}</Text>
+              <Text style={styles.postUsername}>@{shown.users.username}</Text>
               <Text style={styles.postTime}>· {timeAgo}</Text>
             </Pressable>
             {onDelete ? (
@@ -59,7 +79,9 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
             )}
           </View>
 
-          <Text style={styles.postContent}>{post.content}</Text>
+          <Text style={styles.postContent}>{shown.content}</Text>
+
+          {shown.quoted_post && <QuotedPost post={shown.quoted_post} />}
 
           {(teams.length > 0 || topics.length > 0) && (
             <View style={styles.postTags}>
@@ -82,31 +104,59 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
           <View style={styles.actions}>
             <Pressable style={styles.action} onPress={replyAction} hitSlop={8}>
               <Ionicons name="chatbubble-outline" size={17} color={colors.textDim} />
-              {post.reply_count > 0 && <Text style={styles.actionCount}>{post.reply_count}</Text>}
+              {shown.reply_count > 0 && <Text style={styles.actionCount}>{shown.reply_count}</Text>}
             </Pressable>
-            <Pressable style={styles.action} onPress={() => toggleLike(post, onPatch)} hitSlop={8}>
-              <Ionicons
-                name={post.liked_by_me ? "heart" : "heart-outline"}
-                size={18}
-                color={post.liked_by_me ? colors.like : colors.textDim}
-              />
-              {/* like_count is null unless you're the author: others only see the heart. */}
-              {post.like_count !== null && post.like_count > 0 && (
-                <Text style={[styles.actionCount, post.liked_by_me && styles.actionCountLiked]}>
-                  {post.like_count}
+            <Pressable style={styles.action} onPress={onRepostPress} hitSlop={8}>
+              <Ionicons name="repeat" size={19} color={shown.reposted_by_me ? colors.accent : colors.textDim} />
+              {/* Counts are null unless you're the author: others only see the icons. */}
+              {shown.repost_count !== null && shown.repost_count > 0 && (
+                <Text style={[styles.actionCount, shown.reposted_by_me && styles.actionCountReposted]}>
+                  {shown.repost_count}
                 </Text>
               )}
             </Pressable>
-            <Pressable style={[styles.action, styles.actionEnd]} onPress={() => toggleBookmark(post, onPatch)} hitSlop={8}>
+            <Pressable style={styles.action} onPress={() => toggleLike(shown, onPatch)} hitSlop={8}>
               <Ionicons
-                name={post.bookmarked_by_me ? "bookmark" : "bookmark-outline"}
+                name={shown.liked_by_me ? "heart" : "heart-outline"}
+                size={18}
+                color={shown.liked_by_me ? colors.like : colors.textDim}
+              />
+              {shown.like_count !== null && shown.like_count > 0 && (
+                <Text style={[styles.actionCount, shown.liked_by_me && styles.actionCountLiked]}>
+                  {shown.like_count}
+                </Text>
+              )}
+            </Pressable>
+            <Pressable style={[styles.action, styles.actionEnd]} onPress={() => toggleBookmark(shown, onPatch)} hitSlop={8}>
+              <Ionicons
+                name={shown.bookmarked_by_me ? "bookmark" : "bookmark-outline"}
                 size={17}
-                color={post.bookmarked_by_me ? colors.accent2 : colors.textDim}
+                color={shown.bookmarked_by_me ? colors.accent2 : colors.textDim}
               />
             </Pressable>
           </View>
         </View>
       </View>
+    </Pressable>
+  );
+}
+
+// The embedded original inside a quote post. Also used by the composer as a preview.
+export function QuotedPost({ post }: { post: FeedPostBase }) {
+  const router = useRouter();
+  return (
+    <Pressable style={styles.quote} onPress={() => router.push(`/posts/${post.id}`)}>
+      <View style={styles.quoteHeader}>
+        <Text style={styles.quoteAuthor} numberOfLines={1}>
+          {post.users.display_name}
+        </Text>
+        <Text style={styles.quoteMeta} numberOfLines={1}>
+          @{post.users.username} · {getTimeAgo(new Date(post.created_at))}
+        </Text>
+      </View>
+      <Text style={styles.quoteContent} numberOfLines={6}>
+        {post.content}
+      </Text>
     </Pressable>
   );
 }
@@ -128,6 +178,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: colors.rowDivider,
+  },
+  repostHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 10,
+    paddingLeft: 16 + 44 + 11, // line up with the post body, past the avatar column
+    paddingRight: 16,
+    marginBottom: -6,
+  },
+  repostHeaderText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.textDim,
   },
   postContentWrapper: {
     flexDirection: "row",
@@ -195,6 +259,38 @@ const styles = StyleSheet.create({
     color: colors.textBody,
     marginTop: 2,
   },
+  quote: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface2,
+    gap: 4,
+  },
+  quoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  quoteAuthor: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: colors.text,
+    flexShrink: 1,
+  },
+  quoteMeta: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textDim,
+    flexShrink: 1,
+  },
+  quoteContent: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textBody,
+  },
   postTags: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -224,6 +320,9 @@ const styles = StyleSheet.create({
   },
   actionCountLiked: {
     color: colors.like,
+  },
+  actionCountReposted: {
+    color: colors.accent,
   },
   actionEnd: {
     marginLeft: "auto",

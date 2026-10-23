@@ -5,7 +5,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { apiFetch } from "../../src/api/client";
 import { SideMenu } from "../../src/components/SideMenu";
 import { PostCard } from "../../src/components/PostCard";
-import type { PatchPost } from "../../src/feed/engagement";
+import { patchPostList, type PatchPost } from "../../src/feed/engagement";
 import { Ionicons } from "@expo/vector-icons";
 import type { FeedPost } from "../../src/feed/feedTypes";
 import { onNewPost } from "../../src/feed/optimisticFeed";
@@ -112,7 +112,7 @@ export default function HomeScreen() {
   }, [hasNextPage, nextCursor, loadingMore, loading, loadFeed]);
 
   const patchPost = useCallback<PatchPost>((id, patch) => {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPosts((prev) => patchPostList(prev, id, patch));
   }, []);
 
   const handleFeedChange = (type: FeedType) => {

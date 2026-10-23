@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api/client";
 import { PostCard } from "../src/components/PostCard";
 import type { FeedPost } from "../src/feed/feedTypes";
-import type { PatchPost } from "../src/feed/engagement";
+import { patchPostList, type PatchPost } from "../src/feed/engagement";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 export default function BookmarksScreen() {
@@ -53,7 +53,7 @@ export default function BookmarksScreen() {
   }, [load]);
 
   const patchPost: PatchPost = (id, patch) => {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPosts((prev) => patchPostList(prev, id, patch));
   };
 
   return (

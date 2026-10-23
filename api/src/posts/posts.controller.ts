@@ -24,16 +24,25 @@ export class PostsController {
     return dbUser;
   }
 
-  private async requirePost(id: string) {
+  // Likes, bookmarks and reposts always target the original post: if `id` is a
+  // plain repost row, resolve through to the post it reposts.
+  private async requireOriginal(id: string) {
     const post = await this.prisma.posts.findUnique({
       where: { id },
-      select: { id: true, author_id: true },
+      select: { id: true, author_id: true, repost_of_id: true },
     });
     if (!post) throw new NotFoundException('post_not_found');
-    return post;
+    if (!post.repost_of_id) return { id: post.id, author_id: post.author_id };
+
+    const original = await this.prisma.posts.findUnique({
+      where: { id: post.repost_of_id },
+      select: { id: true, author_id: true },
+    });
+    if (!original) throw new NotFoundException('post_not_found');
+    return original;
   }
 
-  // Same rule as post-shape.ts: the like count is only revealed to the author.
+  // Same rule as post-shape.ts: counts are only revealed to the author.
   private async likeState(post: { id: string; author_id: string }, viewerId: string) {
     const [liked, like_count] = await Promise.all([
       this.prisma.post_likes.findUnique({
@@ -45,6 +54,19 @@ export class PostsController {
         : Promise.resolve(null),
     ]);
     return { liked: !!liked, like_count };
+  }
+
+  private async repostState(post: { id: string; author_id: string }, viewerId: string) {
+    const [mine, repost_count] = await Promise.all([
+      this.prisma.posts.findFirst({
+        where: { author_id: viewerId, repost_of_id: post.id },
+        select: { id: true },
+      }),
+      post.author_id === viewerId
+        ? this.prisma.posts.count({ where: { repost_of_id: post.id } })
+        : Promise.resolve(null),
+    ]);
+    return { reposted: !!mine, repost_count };
   }
 
   @Post()
@@ -62,11 +84,22 @@ export class PostsController {
       if (!parent) throw new BadRequestException('parent_post_not_found');
     }
 
+    let quotedPostId: string | null = null;
+    if (dto.quotedPostId) {
+      const quoted = await this.prisma.posts.findUnique({
+        where: { id: dto.quotedPostId },
+        select: { id: true, repost_of_id: true },
+      });
+      if (!quoted) throw new BadRequestException('quoted_post_not_found');
+      // Quoting a plain repost quotes what it reposted.
+      quotedPostId = quoted.repost_of_id ?? quoted.id;
+    }
+
     const teamIds = Array.from(new Set(dto.teamIds ?? []));
     const topicIds = Array.from(new Set(dto.topicIds ?? []));
 
-    // Top-level posts must be scoped to football content: at least one team or topic.
-    // Replies inherit scope from their parent thread, so they are exempt.
+    // Top-level posts (quotes included) must be scoped to football content: at least
+    // one team or topic. Replies inherit scope from their parent thread, so they are exempt.
     if (!dto.parentPostId && teamIds.length === 0 && topicIds.length === 0) {
       throw new BadRequestException('team_or_topic_required');
     }
@@ -87,6 +120,7 @@ export class PostsController {
           author_id: dbUser.id,
           content,
           parent_post_id: dto.parentPostId ?? null,
+          quoted_post_id: quotedPostId,
         },
         select: { id: true },
       });
@@ -160,7 +194,7 @@ export class PostsController {
   @Post(':id/like')
   async like(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requirePost(id);
+    const post = await this.requireOriginal(id);
     await this.prisma.post_likes.createMany({
       data: [{ post_id: post.id, user_id: viewer.id }],
       skipDuplicates: true, // liking twice is a no-op, not an error
@@ -171,7 +205,7 @@ export class PostsController {
   @Delete(':id/like')
   async unlike(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requirePost(id);
+    const post = await this.requireOriginal(id);
     await this.prisma.post_likes.deleteMany({ where: { post_id: post.id, user_id: viewer.id } });
     return this.likeState(post, viewer.id);
   }
@@ -179,7 +213,7 @@ export class PostsController {
   @Post(':id/bookmark')
   async bookmark(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requirePost(id);
+    const post = await this.requireOriginal(id);
     await this.prisma.bookmarks.createMany({
       data: [{ user_id: viewer.id, post_id: post.id }],
       skipDuplicates: true,
@@ -190,9 +224,30 @@ export class PostsController {
   @Delete(':id/bookmark')
   async unbookmark(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requirePost(id);
+    const post = await this.requireOriginal(id);
     await this.prisma.bookmarks.deleteMany({ where: { user_id: viewer.id, post_id: post.id } });
     return { bookmarked: false };
+  }
+
+  @Post(':id/repost')
+  async repost(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requireOriginal(id);
+    // A plain repost is its own posts row with no content. (author_id, repost_of_id)
+    // is unique, so reposting twice is a no-op.
+    await this.prisma.posts.createMany({
+      data: [{ author_id: viewer.id, content: '', repost_of_id: post.id }],
+      skipDuplicates: true,
+    });
+    return this.repostState(post, viewer.id);
+  }
+
+  @Delete(':id/repost')
+  async unrepost(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requireOriginal(id);
+    await this.prisma.posts.deleteMany({ where: { author_id: viewer.id, repost_of_id: post.id } });
+    return this.repostState(post, viewer.id);
   }
 
   @Delete(':id')
@@ -206,7 +261,8 @@ export class PostsController {
     if (!post) throw new NotFoundException('post_not_found');
     if (post.author_id !== dbUser.id) throw new ForbiddenException('not_your_post');
 
-    // Hard delete — post_teams/post_topics, likes, bookmarks and any replies cascade via FK onDelete.
+    // Hard delete. Tags, likes, bookmarks, replies and plain reposts of this post cascade
+    // via FK onDelete; quote posts keep their own content and lose the embed (SetNull).
     await this.prisma.posts.delete({ where: { id } });
     return { ok: true };
   }

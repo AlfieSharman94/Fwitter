@@ -10,6 +10,10 @@ export class CreatePostDto {
   parentPostId?: string;
 
   @IsOptional()
+  @IsString()
+  quotedPostId?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
   @IsString({ each: true })

@@ -6,11 +6,15 @@ import { VoteDto } from './dto/vote.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from './post-shape';
 import { extractHashtags, extractMentions } from './content-entities';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
 export class PostsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private parseLimit(limit?: string) {
     const n = Number(limit ?? 20);
@@ -78,24 +82,32 @@ export class PostsController {
     const content = dto.content.trim();
     if (!content) throw new BadRequestException('content_required');
 
+    let parent: { id: string; author_id: string } | null = null;
     if (dto.parentPostId) {
-      const parent = await this.prisma.posts.findUnique({
+      parent = await this.prisma.posts.findUnique({
         where: { id: dto.parentPostId },
-        select: { id: true },
+        select: { id: true, author_id: true },
       });
       if (!parent) throw new BadRequestException('parent_post_not_found');
     }
 
-    let quotedPostId: string | null = null;
+    let quotedTarget: { id: string; author_id: string } | null = null;
     if (dto.quotedPostId) {
       const quoted = await this.prisma.posts.findUnique({
         where: { id: dto.quotedPostId },
-        select: { id: true, repost_of_id: true },
+        select: { id: true, author_id: true, repost_of_id: true },
       });
       if (!quoted) throw new BadRequestException('quoted_post_not_found');
       // Quoting a plain repost quotes what it reposted.
-      quotedPostId = quoted.repost_of_id ?? quoted.id;
+      quotedTarget = quoted.repost_of_id
+        ? await this.prisma.posts.findUnique({
+            where: { id: quoted.repost_of_id },
+            select: { id: true, author_id: true },
+          })
+        : { id: quoted.id, author_id: quoted.author_id };
+      if (!quotedTarget) throw new BadRequestException('quoted_post_not_found');
     }
+    const quotedPostId = quotedTarget?.id ?? null;
 
     const teamIds = Array.from(new Set(dto.teamIds ?? []));
     const topicIds = Array.from(new Set(dto.topicIds ?? []));
@@ -189,6 +201,22 @@ export class PostsController {
       return tx.posts.findUniqueOrThrow({ where: { id: post.id }, select: feedPostSelect(dbUser.id) });
     });
 
+    // Notifications are fire-and-forget. Someone replied to or quoted gets one
+    // notification even if the text also @mentions them.
+    const alreadyTold = new Set<string>();
+    if (parent) {
+      alreadyTold.add(parent.author_id);
+      void this.notifications.notify({ recipientId: parent.author_id, actorId: dbUser.id, type: 'REPLY', postId: created.id });
+    }
+    if (quotedTarget) {
+      alreadyTold.add(quotedTarget.author_id);
+      void this.notifications.notify({ recipientId: quotedTarget.author_id, actorId: dbUser.id, type: 'QUOTE', postId: created.id });
+    }
+    for (const u of mentioned) {
+      if (alreadyTold.has(u.id)) continue;
+      void this.notifications.notify({ recipientId: u.id, actorId: dbUser.id, type: 'MENTION', postId: created.id });
+    }
+
     return { ok: true, post: toFeedPost(created, dbUser.id) };
   }
 
@@ -247,6 +275,7 @@ export class PostsController {
       data: [{ post_id: post.id, user_id: viewer.id }],
       skipDuplicates: true, // liking twice is a no-op, not an error
     });
+    void this.notifications.notify({ recipientId: post.author_id, actorId: viewer.id, type: 'LIKE', postId: post.id });
     return this.likeState(post, viewer.id);
   }
 
@@ -255,6 +284,7 @@ export class PostsController {
     const viewer = await this.requireViewer(user.sub);
     const post = await this.requireOriginal(id);
     await this.prisma.post_likes.deleteMany({ where: { post_id: post.id, user_id: viewer.id } });
+    void this.notifications.remove({ recipientId: post.author_id, actorId: viewer.id, type: 'LIKE', postId: post.id });
     return this.likeState(post, viewer.id);
   }
 
@@ -317,6 +347,7 @@ export class PostsController {
       data: [{ author_id: viewer.id, content: '', repost_of_id: post.id }],
       skipDuplicates: true,
     });
+    void this.notifications.notify({ recipientId: post.author_id, actorId: viewer.id, type: 'REPOST', postId: post.id });
     return this.repostState(post, viewer.id);
   }
 
@@ -325,6 +356,7 @@ export class PostsController {
     const viewer = await this.requireViewer(user.sub);
     const post = await this.requireOriginal(id);
     await this.prisma.posts.deleteMany({ where: { author_id: viewer.id, repost_of_id: post.id } });
+    void this.notifications.remove({ recipientId: post.author_id, actorId: viewer.id, type: 'REPOST', postId: post.id });
     return this.repostState(post, viewer.id);
   }
 
@@ -334,14 +366,25 @@ export class PostsController {
 
     const post = await this.prisma.posts.findUnique({
       where: { id },
-      select: { author_id: true },
+      select: { author_id: true, repost_of_id: true, repost_of: { select: { author_id: true } } },
     });
     if (!post) throw new NotFoundException('post_not_found');
     if (post.author_id !== dbUser.id) throw new ForbiddenException('not_your_post');
 
-    // Hard delete. Tags, likes, bookmarks, replies and plain reposts of this post cascade
-    // via FK onDelete; quote posts keep their own content and lose the embed (SetNull).
+    // Hard delete. Tags, likes, bookmarks, replies, plain reposts of this post and
+    // notifications about it cascade via FK onDelete; quote posts keep their own
+    // content and lose the embed (SetNull).
     await this.prisma.posts.delete({ where: { id } });
+
+    // Deleting a repost row from your profile is an undo: drop the author's notification.
+    if (post.repost_of_id && post.repost_of) {
+      void this.notifications.remove({
+        recipientId: post.repost_of.author_id,
+        actorId: dbUser.id,
+        type: 'REPOST',
+        postId: post.repost_of_id,
+      });
+    }
     return { ok: true };
   }
 }

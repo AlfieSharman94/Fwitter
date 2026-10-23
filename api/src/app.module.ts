@@ -9,6 +9,7 @@ import { FeedModule } from './feed/feed.module';
 import { PostsModule } from './posts/posts.module';
 import { SearchModule } from './search/search.module';
 import { HashtagsModule } from './hashtags/hashtags.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { HashtagsModule } from './hashtags/hashtags.module';
     PostsModule,
     SearchModule,
     HashtagsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

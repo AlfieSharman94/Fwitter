@@ -42,3 +42,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase config (download from the Firebase console; EAS gets it from the GOOGLE_SERVICES_JSON file variable)
+google-services.json
+GoogleService-Info.plist

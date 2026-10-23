@@ -52,6 +52,21 @@ export async function apiFetch(path: string, options: FetchOptions = {}) {
     throw new Error("Session expired. Please sign in again.");
   }
 
+  // Suspended or banned: the API refuses every request with a named reason. Explain
+  // and drop the session so the router returns to Welcome; signing in again repeats it.
+  if (res.status === 403) {
+    const refusal = await res.clone().json().catch(() => null);
+    if (refusal?.message === "account_banned" || refusal?.message === "account_suspended") {
+      await doSignOut();
+      const until = refusal.until ? new Date(refusal.until).toLocaleDateString() : null;
+      throw new Error(
+        refusal.message === "account_banned"
+          ? "Your account has been banned for breaking the Fwitter rules."
+          : `Your account is suspended${until ? ` until ${until}` : ""}.`
+      );
+    }
+  }
+
   const contentType = res.headers.get("content-type") || "";
   const isJson = contentType.includes("application/json");
   const body = isJson ? await res.json().catch(() => null) : await res.text().catch(() => null);

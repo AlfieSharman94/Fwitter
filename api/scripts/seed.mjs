@@ -89,6 +89,24 @@ const bannedWords = [
   "fuck", "fucking", "fucked", "shit", "cunt", "bitch", "wanker", "twat", "dickhead", "prick", "bastard",
 ];
 
+// Initial admins: comma-separated emails in ADMIN_EMAILS. Promotion only; the seed
+// never demotes, so later role changes made from the dashboard stick.
+async function promoteAdmins() {
+  const emails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  let promoted = 0;
+  for (const email of emails) {
+    const { count } = await prisma.users.updateMany({
+      where: { email: { equals: email, mode: "insensitive" }, role: { not: "ADMIN" } },
+      data: { role: "ADMIN" },
+    });
+    promoted += count;
+  }
+  return { configured: emails.length, promoted };
+}
+
 async function main() {
   for (const t of teams) await upsertTeam(t.name);
   for (const tp of topics) await upsertTopic(tp);
@@ -96,11 +114,13 @@ async function main() {
     data: bannedWords.map((word) => ({ word: word.toLowerCase() })),
     skipDuplicates: true,
   });
+  const admins = await promoteAdmins();
 
   console.log({
     teams: await prisma.teams.count(),
     topics: await prisma.topics.count(),
     bannedWords: await prisma.banned_words.count(),
+    admins,
   });
 }
 

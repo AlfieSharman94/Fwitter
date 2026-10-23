@@ -39,6 +39,7 @@ export class NotificationsController {
       select: {
         id: true,
         type: true,
+        note: true,
         created_at: true,
         read_at: true,
         actor: { select: { id: true, username: true, display_name: true, profile_image_url: true } },

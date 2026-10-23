@@ -1,4 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
 const TEAM_SELECT = { id: true, name: true, logo_url: true, league: true, country: true };
@@ -71,5 +73,44 @@ export class TeamsController {
     items.sort((a, b) => featuredRank(a) - featuredRank(b));
 
     return { teams: items };
+  }
+
+  // Composer default list: the viewer's own clubs (primary first), then the other clubs of
+  // each of those leagues, league by league. A Premier League fan sees the Premier League,
+  // not the start of the alphabet. Empty until the profile has at least one club.
+  @UseGuards(JwtAuthGuard)
+  @Get('suggested')
+  async suggested(@CurrentUser() user: { sub: string }) {
+    const dbUser = await this.prisma.users.findUnique({
+      where: { cognito_sub: user.sub },
+      select: { id: true },
+    });
+    if (!dbUser) return { teams: [] };
+
+    const mine = await this.prisma.user_teams.findMany({
+      where: { user_id: dbUser.id },
+      orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
+      select: { teams: { select: TEAM_SELECT } },
+    });
+    const own = mine.map((row) => row.teams);
+    if (own.length === 0) return { teams: [] };
+
+    const leagues = own
+      .filter((t) => t.league && t.country)
+      .map((t) => ({ league: t.league as string, country: t.country as string }));
+    const others = leagues.length
+      ? await this.prisma.teams.findMany({
+          where: { OR: leagues, id: { notIn: own.map((t) => t.id) } },
+          orderBy: { name: 'asc' },
+          select: TEAM_SELECT,
+        })
+      : [];
+    // Grouped by league in the order of the viewer's clubs (primary club's league first);
+    // the sort is stable, so each league stays alphabetical.
+    const leagueRank = (t: { league: string | null; country: string | null }) =>
+      leagues.findIndex((l) => l.league === t.league && l.country === t.country);
+    others.sort((a, b) => leagueRank(a) - leagueRank(b));
+
+    return { teams: [...own, ...others] };
   }
 }

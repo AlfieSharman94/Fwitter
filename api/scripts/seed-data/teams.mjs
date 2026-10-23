@@ -156,6 +156,31 @@ export const leagues = [
     "FC Anyang", "Daegu FC", "Daejeon Hana Citizen", "Gangwon FC", "Gimcheon Sangmu", "Gwangju FC", "Jeju SK",
     "Jeonbuk Hyundai Motors", "Pohang Steelers", "FC Seoul", "Suwon FC", "Ulsan HD",
   ] },
+  // ---- UEFA 2025-26 league-phase clubs from leagues not listed above ----------
+  // Only the European entrants, not the full divisions.
+  { country: "Czech Republic", league: "First League", teams: ["Slavia Prague", "Sparta Prague", "Viktoria Plzeň", "Sigma Olomouc"] },
+  { country: "Azerbaijan", league: "Premier League", teams: ["Qarabağ"] },
+  { country: "Cyprus", league: "First Division", teams: ["Pafos", "Omonia", "AEK Larnaca"] },
+  { country: "Kazakhstan", league: "Premier League", teams: ["Kairat"] },
+  { country: "Croatia", league: "HNL", teams: ["Dinamo Zagreb", "Rijeka"] },
+  { country: "Serbia", league: "SuperLiga", teams: ["Crvena Zvezda"] },
+  { country: "Hungary", league: "NB I", teams: ["Ferencváros"] },
+  { country: "Israel", league: "Premier League", teams: ["Maccabi Tel Aviv"] },
+  { country: "Bulgaria", league: "First League", teams: ["Ludogorets"] },
+  { country: "Romania", league: "Liga I", teams: ["FCSB", "Universitatea Craiova"] },
+  { country: "Ukraine", league: "Premier League", teams: ["Shakhtar Donetsk", "Dynamo Kyiv"] },
+  { country: "Slovakia", league: "Super Liga", teams: ["Slovan Bratislava"] },
+  { country: "Poland", league: "Ekstraklasa", teams: ["Legia Warsaw", "Lech Poznań", "Jagiellonia Białystok", "Raków Częstochowa"] },
+  { country: "North Macedonia", league: "First League", teams: ["Shkëndija"] },
+  { country: "Slovenia", league: "PrvaLiga", teams: ["Celje"] },
+  { country: "Bosnia and Herzegovina", league: "Premier League", teams: ["Zrinjski"] },
+  { country: "Gibraltar", league: "Football League", teams: ["Lincoln Red Imps"] },
+  { country: "Armenia", league: "Premier League", teams: ["Noah"] },
+  { country: "Malta", league: "Premier League", teams: ["Hamrun Spartans"] },
+  { country: "Kosovo", league: "Superleague", teams: ["Drita"] },
+  { country: "Iceland", league: "Besta deild", teams: ["Breiðablik"] },
+  { country: "Ireland", league: "Premier Division", teams: ["Shamrock Rovers", "Shelbourne"] },
+  { country: "Finland", league: "Veikkausliiga", teams: ["KuPS"] },
 ];
 
 export const extraTopics = [

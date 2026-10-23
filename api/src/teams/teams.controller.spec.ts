@@ -53,4 +53,46 @@ describe('TeamsController', () => {
       ]),
     );
   });
+
+  it("suggested lists the viewer's clubs first, then the rest of their leagues", async () => {
+    const own = [team('FC Barcelona', 'Spain', 'La Liga'), team('Manchester City', 'England', 'Premier League')];
+    // Alphabetical, as the database returns them; expected back grouped by league.
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        team('Arsenal', 'England', 'Premier League'),
+        team('Real Madrid', 'Spain', 'La Liga'),
+        team('Sevilla', 'Spain', 'La Liga'),
+      ]);
+    const prisma = {
+      users: { findUnique: jest.fn().mockResolvedValue({ id: 'u1' }) },
+      user_teams: { findMany: jest.fn().mockResolvedValue(own.map((t) => ({ teams: t }))) },
+      teams: { findMany },
+    } as any;
+
+    const result = await new TeamsController(prisma).suggested({ sub: 'sub-1' });
+
+    expect(result.teams.map((t) => t.name)).toEqual(['FC Barcelona', 'Manchester City', 'Real Madrid', 'Sevilla', 'Arsenal']);
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      OR: [
+        { league: 'La Liga', country: 'Spain' },
+        { league: 'Premier League', country: 'England' },
+      ],
+      id: { notIn: ['fc-barcelona', 'manchester-city'] },
+    });
+  });
+
+  it('suggested is empty for a profile without clubs', async () => {
+    const findMany = jest.fn();
+    const prisma = {
+      users: { findUnique: jest.fn().mockResolvedValue({ id: 'u1' }) },
+      user_teams: { findMany: jest.fn().mockResolvedValue([]) },
+      teams: { findMany },
+    } as any;
+
+    const result = await new TeamsController(prisma).suggested({ sub: 'sub-1' });
+
+    expect(result.teams).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
 });

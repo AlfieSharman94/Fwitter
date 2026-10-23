@@ -34,7 +34,7 @@ const ICON: Record<ActivityType, { name: React.ComponentProps<typeof Ionicons>["
   REPLY: { name: "chatbubble", color: colors.accent2 },
   MENTION: { name: "at", color: colors.accent2 },
   QUOTE: { name: "chatbox-ellipses", color: colors.accent2 },
-  LIKE: { name: "heart", color: colors.like },
+  LIKE: { name: "football", color: colors.like },
   REPOST: { name: "repeat", color: colors.accent },
   FOLLOW: { name: "person-add", color: colors.accent },
   WARNING: { name: "alert-circle", color: colors.warn },

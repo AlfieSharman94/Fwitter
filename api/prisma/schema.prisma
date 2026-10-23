@@ -499,6 +499,8 @@ model users {
   date_of_birth                       DateTime      @db.Date
   is_onboarded                        Boolean       @default(false)
   age_tier                            AgeTier       @default(STANDARD)
+  /// JUNIOR opt-in: a 13 to 15 account is hidden from STANDARD viewers until this is true. Ignored for STANDARD accounts.
+  public_profile                      Boolean       @default(false)
   role                                Role          @default(USER)
   /// Admin-granted badge (clubs, journalists, staff). Shown next to the name.
   verified_at                         DateTime?     @db.Timestamptz(6)

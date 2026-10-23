@@ -124,7 +124,7 @@ What to add, in order:
 
 1. **Parental consent.** For under-13s this is a legal requirement (COPPA, UK GDPR); for 13 to 15s it is strongly expected under the UK Age Appropriate Design Code. Minimum viable: a guardian email at sign-up for JUNIOR accounts, a consent link, and the guardian can request data deletion. Store the consent record.
 2. **Age assurance.** Self-declared dates of birth are trivially faked. Options from light to heavy: block changing DOB after sign-up (done), guardian confirmation (above), a facial age estimation vendor (Yoti) only for accounts that try to move up a tier.
-3. **Private by default for 13 to 15s.** Profiles not searchable by adult-tier accounts; posts visible only to followers unless the account opts in. Today JUNIOR posts are public.
+3. **Private by default for 13 to 15s.** Done: a JUNIOR account is invisible to STANDARD accounts (search, profile, follows, posts and embeds, notifications) until it turns on "Public profile" in Account. Within the 13 to 15 group nothing is hidden, and DMs keep their same-tier rule.
 4. **Contact-detail guard in DMs.** Detect phone numbers, Snapchat/Instagram/Discord handles and "add me on" patterns and warn or block them. Off-platform contact is the classic grooming move.
 5. **Self-harm and crisis signals.** When a post or message matches a self-harm keyword list, show Samaritans/Childline resources to the author and flag to moderators with priority.
 6. **Quiet hours and time limits.** No pushes between 22:00 and 07:00 for JUNIOR accounts; a gentle "you've been scrolling a while" nudge.

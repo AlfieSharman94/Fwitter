@@ -1,5 +1,5 @@
 import { AgeTier } from '@prisma/client';
-import { calculateAge, deriveAgeTier } from './age-tier.util';
+import { calculateAge, canSeeUser, deriveAgeTier, visibleUsersWhere } from './age-tier.util';
 
 const NOW = new Date(Date.UTC(2026, 6, 14)); // 2026-07-14
 const dob = (s: string) => new Date(s);
@@ -24,5 +24,30 @@ describe('deriveAgeTier (server-authoritative)', () => {
   it('calculateAge handles the birthday-today vs tomorrow boundary', () => {
     expect(calculateAge(dob('2013-07-14'), NOW)).toBe(13);
     expect(calculateAge(dob('2013-07-15'), NOW)).toBe(12);
+  });
+});
+
+describe('canSeeUser (private by default for 13 to 15s)', () => {
+  const privateJunior = { age_tier: AgeTier.JUNIOR, public_profile: false };
+  const publicJunior = { age_tier: AgeTier.JUNIOR, public_profile: true };
+  const standard = { age_tier: AgeTier.STANDARD, public_profile: false };
+
+  it('a JUNIOR viewer sees everyone', () => {
+    expect(canSeeUser(AgeTier.JUNIOR, privateJunior)).toBe(true);
+    expect(canSeeUser(AgeTier.JUNIOR, publicJunior)).toBe(true);
+    expect(canSeeUser(AgeTier.JUNIOR, standard)).toBe(true);
+  });
+
+  it('a STANDARD viewer sees STANDARD accounts and JUNIORs who opted in', () => {
+    expect(canSeeUser(AgeTier.STANDARD, standard)).toBe(true);
+    expect(canSeeUser(AgeTier.STANDARD, publicJunior)).toBe(true);
+    expect(canSeeUser(AgeTier.STANDARD, privateJunior)).toBe(false);
+  });
+
+  it('visibleUsersWhere is the same rule as a where fragment', () => {
+    expect(visibleUsersWhere(AgeTier.JUNIOR)).toBeNull();
+    expect(visibleUsersWhere(AgeTier.STANDARD)).toEqual({
+      OR: [{ age_tier: { not: AgeTier.JUNIOR } }, { public_profile: true }],
+    });
   });
 });

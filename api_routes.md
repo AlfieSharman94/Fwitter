@@ -40,6 +40,15 @@ Body:
 Response:
 - 200 { user: { id, username, display_name, email, is_onboarded, ... } }
 
+### PATCH /users/me/profile
+Updates the current user's profile. All fields optional.
+Body:
+- { username?: string, bio?: string, avatarMediaId?: string, publicProfile?: boolean }
+- publicProfile is the JUNIOR (13 to 15) opt-in. Until it is true, a JUNIOR account is invisible to STANDARD (16+) viewers everywhere: search, profile, follows, posts and embeds, notifications. Stored for everyone, ignored for STANDARD accounts.
+Response:
+- 200 { user: { id, username, display_name, ..., age_tier, public_profile } }
+- 409 { message: "username_taken" }
+
 ### PUT /users/me/teams
 Sets primary + additional teams for the current user.
 Rules:
@@ -203,7 +212,7 @@ Response:
 ## Search (Protected)
 
 ### GET /search/users?q=<string>&limit=<n>
-Search users by username or display name (case-insensitive).
+Search users by username or display name (case-insensitive). Either side of a block is left out, and so are JUNIOR accounts that have not opted in to a public profile when the viewer is STANDARD.
 Query params:
 - q (required, min 2 chars, trimmed)
 - limit (optional, default 20, clamped 1-50)

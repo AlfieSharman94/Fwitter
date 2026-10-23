@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -16,4 +16,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   avatarMediaId?: string;
+
+  // JUNIOR accounts only: opt in to being visible to 16+ accounts (ignored for STANDARD).
+  @IsOptional()
+  @IsBoolean()
+  publicProfile?: boolean;
 }

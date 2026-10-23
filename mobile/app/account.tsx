@@ -11,6 +11,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -31,6 +32,8 @@ type MeProfile = {
   created_at: string;
   bio: string | null;
   profile_image_url: string | null;
+  age_tier: "JUNIOR" | "STANDARD";
+  public_profile: boolean;
 };
 
 export default function AccountScreen() {
@@ -45,6 +48,7 @@ export default function AccountScreen() {
   const [bio, setBio] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -115,6 +119,26 @@ export default function AccountScreen() {
       Alert.alert("Error", friendlyUploadError(e));
     } finally {
       setAvatarBusy(false);
+    }
+  };
+
+  // 13 to 15 year olds only. Applies straight away; the switch snaps back if the server refuses.
+  const handleTogglePublic = async (value: boolean) => {
+    if (!profile) return;
+    const previous = profile;
+    setProfile({ ...profile, public_profile: value });
+    setSavingPrivacy(true);
+    try {
+      const data = await apiFetch("/users/me/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ publicProfile: value }),
+      });
+      setProfile(data.user as MeProfile);
+    } catch (e: any) {
+      setProfile(previous);
+      Alert.alert("Error", e?.message ?? "Failed to save.");
+    } finally {
+      setSavingPrivacy(false);
     }
   };
 
@@ -269,6 +293,29 @@ export default function AccountScreen() {
               )}
             </Pressable>
 
+            {/* Privacy: only 13 to 15 year olds have a choice, everyone else is public */}
+            {profile?.age_tier === "JUNIOR" && (
+              <>
+                <Text style={styles.sectionLabel}>Privacy</Text>
+                <View style={styles.readonlyCard}>
+                  <View style={[styles.roRow, { borderBottomWidth: 0 }]}>
+                    <Text style={styles.roLabel}>Public profile</Text>
+                    <Switch
+                      value={profile.public_profile}
+                      onValueChange={handleTogglePublic}
+                      disabled={savingPrivacy}
+                      trackColor={{ true: colors.accent, false: colors.border }}
+                    />
+                  </View>
+                </View>
+                <Text style={styles.privacyHelp}>
+                  {profile.public_profile
+                    ? "Anyone on Fwitter can find you, follow you and see your posts."
+                    : "Only other 13 to 15 year olds can find you, follow you and see your posts. Turn this on to be visible to everyone."}
+                </Text>
+              </>
+            )}
+
             {/* Password */}
             <Text style={styles.sectionLabel}>Password</Text>
             <TextInput
@@ -371,6 +418,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 14,
   },
+  privacyHelp: { fontFamily: fonts.body, fontSize: 13, color: colors.textDim, lineHeight: 18 },
   readonlyCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,

@@ -7,6 +7,7 @@ import Constants from "expo-constants";
 import { useRouter, type Href } from "expo-router";
 import { apiFetch } from "../api/client";
 import { refreshUnread } from "./unread";
+import { refreshDmUnread } from "../dm/unread";
 
 let registeredToken: string | null = null;
 
@@ -77,6 +78,7 @@ export function usePushNavigation() {
     const tapSub = Notifications.addNotificationResponseReceivedListener(open);
     const receivedSub = Notifications.addNotificationReceivedListener(() => {
       refreshUnread();
+      refreshDmUnread();
     });
     return () => {
       tapSub.remove();

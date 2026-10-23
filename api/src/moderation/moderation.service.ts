@@ -19,6 +19,7 @@ export type AccountStatus = {
 export type ReportInput = {
   postId?: string;
   userId?: string;
+  conversationId?: string;
   reason: ReportReason;
   details?: string;
 };
@@ -179,9 +180,23 @@ export class ModerationService {
   // ---- Reports ------------------------------------------------------------
 
   async report(reporterId: string, input: ReportInput): Promise<{ ok: true; hidden: boolean }> {
-    const hasPost = !!input.postId;
-    const hasUser = !!input.userId;
-    if (hasPost === hasUser) throw new BadRequestException('report_exactly_one_target');
+    const targets = [input.postId, input.userId, input.conversationId].filter(Boolean).length;
+    if (targets !== 1) throw new BadRequestException('report_exactly_one_target');
+
+    if (input.conversationId) {
+      // Only a participant can report a conversation; moderators may then read it.
+      const conv = await this.prisma.conversations.findUnique({
+        where: { id: input.conversationId },
+        select: { id: true, user_a_id: true, user_b_id: true },
+      });
+      if (!conv) throw new NotFoundException('conversation_not_found');
+      if (conv.user_a_id !== reporterId && conv.user_b_id !== reporterId) throw new NotFoundException('conversation_not_found');
+      await this.prisma.reports.createMany({
+        data: [{ reporter_id: reporterId, conversation_id: conv.id, reason: input.reason, details: input.details ?? null }],
+        skipDuplicates: true,
+      });
+      return { ok: true, hidden: false };
+    }
 
     if (input.postId) {
       const post = await this.prisma.posts.findUnique({

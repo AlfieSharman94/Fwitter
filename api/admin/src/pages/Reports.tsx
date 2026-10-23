@@ -7,14 +7,14 @@ import { UserActions } from './UserDetail';
 import { Media } from '../Media';
 
 type Status = 'OPEN' | 'RESOLVED' | 'DISMISSED' | 'ALL';
-type Group = { key: string; post: ReportRow['post']; user: ReportRow['user']; reports: ReportRow[] };
+type Group = { key: string; post: ReportRow['post']; user: ReportRow['user']; conversation: ReportRow['conversation']; reports: ReportRow[] };
 
 // Reports are shown per target: one card per post or user, with everyone who reported it.
 function group(rows: ReportRow[]): Group[] {
   const map = new Map<string, Group>();
   for (const r of rows) {
-    const key = r.post ? `post:${r.post.id}` : `user:${r.user?.id}`;
-    const g = map.get(key) ?? { key, post: r.post, user: r.user, reports: [] };
+    const key = r.post ? `post:${r.post.id}` : r.conversation ? `conv:${r.conversation.id}` : `user:${r.user?.id}`;
+    const g = map.get(key) ?? { key, post: r.post, user: r.user, conversation: r.conversation, reports: [] };
     g.reports.push(r);
     map.set(key, g);
   }
@@ -111,6 +111,28 @@ export default function Reports({ me }: { me: Me }) {
                       <button className="warn" onClick={() => { const n = askNote('Note (optional)'); if (n !== null) act(() => api(`/admin/posts/${g.post!.id}/hide`, { method: 'POST', body: JSON.stringify({ note: n }) })); }}>Hide</button>
                     )}
                     <button className="danger" onClick={() => { if (!confirm('Delete this post permanently?')) return; const n = askNote('Note (optional)'); if (n !== null) act(() => api(`/admin/posts/${g.post!.id}`, { method: 'DELETE', body: JSON.stringify({ note: n }) })); }}>Delete</button>
+                    <button onClick={() => { const n = askNote('Why no action? (optional)'); if (n !== null) act(() => api(`/admin/reports/${g.reports[0].id}/dismiss`, { method: 'POST', body: JSON.stringify({ note: n }) })); }}>Dismiss</button>
+                  </div>
+                )}
+              </>
+            ) : g.conversation ? (
+              <>
+                <div className="head">
+                  <div>
+                    <span className="pill">conversation</span>
+                    {g.conversation.participants.map((p, i) => (
+                      <span key={p.id}>
+                        {i > 0 && ' and '}
+                        <Link to={`/users/${p.id}`}>@{p.username}</Link>
+                      </span>
+                    ))}
+                    {' · '}
+                    <Link to={`/conversations/${g.conversation.id}`}>Read messages</Link>
+                  </div>
+                </div>
+                <Reporters reports={g.reports} />
+                {g.reports.some((r) => r.status === 'OPEN') && (
+                  <div className="actions">
                     <button onClick={() => { const n = askNote('Why no action? (optional)'); if (n !== null) act(() => api(`/admin/reports/${g.reports[0].id}/dismiss`, { method: 'POST', body: JSON.stringify({ note: n }) })); }}>Dismiss</button>
                   </div>
                 )}

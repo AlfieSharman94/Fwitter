@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "rea
 import { apiFetch } from "../api/client";
 import { colors, fonts, radii } from "../theme/theme";
 
-export type ReportTarget = { postId?: string; userId?: string; label: string };
+export type ReportTarget = { postId?: string; userId?: string; conversationId?: string; label: string };
 
 const REASONS = [
   { key: "SPAM", label: "Spam" },
@@ -37,7 +37,7 @@ export function ReportSheet({ target, onClose }: { target: ReportTarget | null; 
     try {
       await apiFetch("/reports", {
         method: "POST",
-        body: JSON.stringify({ postId: target.postId, userId: target.userId, reason }),
+        body: JSON.stringify({ postId: target.postId, userId: target.userId, conversationId: target.conversationId, reason }),
       });
       setDone(true);
     } catch (e: any) {

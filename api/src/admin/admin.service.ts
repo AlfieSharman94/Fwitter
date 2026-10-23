@@ -78,14 +78,22 @@ export class AdminService {
         reported: {
           select: { id: true, username: true, display_name: true, suspended_until: true, banned_at: true, role: true, verified_at: true },
         },
+        conversation: {
+          select: {
+            id: true,
+            user_a: { select: { id: true, username: true, display_name: true } },
+            user_b: { select: { id: true, username: true, display_name: true } },
+          },
+        },
       },
     });
     const nextCursor = rows.length === limit ? rows[rows.length - 1].created_at.toISOString() : null;
     return {
-      reports: rows.map(({ posts, reported, ...r }) => ({
+      reports: rows.map(({ posts, reported, conversation, ...r }) => ({
         ...r,
         post: posts ? { ...posts, media: posts.media.map((m) => ({ url: publicMediaUrl(m.key) })) } : null,
         user: reported,
+        conversation: conversation ? { id: conversation.id, participants: [conversation.user_a, conversation.user_b] } : null,
       })),
       nextCursor,
     };
@@ -105,13 +113,17 @@ export class AdminService {
   async dismissReports(actor: Actor, reportId: string, note?: string) {
     const report = await this.prisma.reports.findUnique({
       where: { id: reportId },
-      select: { post_id: true, user_id: true },
+      select: { post_id: true, user_id: true, conversation_id: true },
     });
     if (!report) throw new NotFoundException('report_not_found');
 
-    const where = report.post_id ? { post_id: report.post_id } : { user_id: report.user_id };
+    const where = report.post_id
+      ? { post_id: report.post_id }
+      : report.conversation_id
+        ? { conversation_id: report.conversation_id }
+        : { user_id: report.user_id };
     const { count } = await this.closeReports(actor, where, 'DISMISSED');
-    await this.log(actor, 'DISMISS_REPORTS', { postId: report.post_id, userId: report.user_id }, note);
+    await this.log(actor, 'DISMISS_REPORTS', { postId: report.post_id, userId: report.user_id }, note ?? (report.conversation_id ? `conversation ${report.conversation_id}` : undefined));
     return { ok: true, dismissed: count };
   }
 

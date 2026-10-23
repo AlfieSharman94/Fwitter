@@ -20,6 +20,7 @@ import { MatchesModule } from './matches/matches.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { AdminModule } from './admin/admin.module';
 import { MediaModule } from './media/media.module';
+import { DmModule } from './dm/dm.module';
 
 const ADMIN_DIST = join(__dirname, '..', 'admin', 'dist');
 
@@ -48,6 +49,7 @@ const ADMIN_DIST = join(__dirname, '..', 'admin', 'dist');
     NotificationsModule,
     MatchesModule,
     AdminModule,
+    DmModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

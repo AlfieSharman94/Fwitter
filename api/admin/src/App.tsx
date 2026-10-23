@@ -9,6 +9,7 @@ import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
 import BannedWords from './pages/BannedWords';
 import Audit from './pages/Audit';
+import Conversation from './pages/Conversation';
 
 type Gate = { state: 'loading' } | { state: 'signed-out' } | { state: 'forbidden' } | { state: 'ok'; me: Me };
 
@@ -83,6 +84,7 @@ export default function App() {
           <Route path="/users/:id" element={<UserDetail me={me} />} />
           <Route path="/banned-words" element={<BannedWords />} />
           <Route path="/audit" element={<Audit />} />
+          <Route path="/conversations/:id" element={<Conversation />} />
           <Route path="*" element={<Navigate to="/reports" replace />} />
         </Routes>
       </main>

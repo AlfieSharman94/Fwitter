@@ -10,6 +10,7 @@ import { PostCard } from "../../src/components/PostCard";
 import { ReportSheet, type ReportTarget } from "../../src/components/ReportSheet";
 import { patchPostList, type PatchPost } from "../../src/feed/engagement";
 import { publishAuthorBlocked, useFeedEvents } from "../../src/feed/optimisticFeed";
+import { friendlyDmError } from "../../src/dm/unread";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 type UserProfile = {
@@ -26,6 +27,7 @@ type UserProfile = {
   isBlocked: boolean;
   hasBlockedMe: boolean;
   isVerified: boolean;
+  dm: { allowed: boolean; reason: string | null };
 };
 
 export default function UserProfileScreen() {
@@ -42,7 +44,21 @@ export default function UserProfileScreen() {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [openingDm, setOpeningDm] = useState(false);
   useFeedEvents(setPosts);
+
+  const openDm = async () => {
+    if (!profile || openingDm) return;
+    setOpeningDm(true);
+    try {
+      const data = await apiFetch("/dm/conversations", { method: "POST", body: JSON.stringify({ userId: profile.id }) });
+      router.push(`/dm/${data.conversation.id}`);
+    } catch (e: any) {
+      Alert.alert("Can’t message", friendlyDmError(e, "Failed to open conversation"));
+    } finally {
+      setOpeningDm(false);
+    }
+  };
 
   const loadProfile = useCallback(async () => {
     if (!userId) {
@@ -293,6 +309,12 @@ export default function UserProfileScreen() {
             </Pressable>
           )}
 
+          {!profile.isSelf && profile.dm.allowed && (
+            <Pressable style={[styles.messageButton, openingDm && styles.followButtonDisabled]} onPress={openDm} disabled={openingDm}>
+              <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
+              <Text style={styles.messageButtonText}>Message</Text>
+            </Pressable>
+          )}
           {followError && <Text style={styles.followErrorText}>{followError}</Text>}
         </View>
 
@@ -467,6 +489,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     fontFamily: fonts.body,
+  },
+  messageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageButtonText: {
+    color: colors.text,
+    fontFamily: fonts.heading,
+    fontSize: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   blockedNote: {
     fontFamily: fonts.body,

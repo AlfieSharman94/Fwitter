@@ -193,15 +193,16 @@ export class UsersController {
     }
 
     // Replace selection (simple & safe)
-    await this.prisma.user_teams.deleteMany({ where: { user_id: dbUser.id } });
-
-    await this.prisma.user_teams.createMany({
-      data: uniqueTeamIds.map((teamId) => ({
-        user_id: dbUser.id,
-        team_id: teamId,
-        is_primary: teamId === dto.primaryTeamId,
-      })),
-    });
+    await this.prisma.$transaction([
+      this.prisma.user_teams.deleteMany({ where: { user_id: dbUser.id } }),
+      this.prisma.user_teams.createMany({
+        data: uniqueTeamIds.map((teamId) => ({
+          user_id: dbUser.id,
+          team_id: teamId,
+          is_primary: teamId === dto.primaryTeamId,
+        })),
+      }),
+    ]);
 
     return { ok: true };
   }
@@ -228,14 +229,15 @@ export class UsersController {
       throw new BadRequestException('one_or_more_topics_not_found');
     }
 
-    await this.prisma.user_topics.deleteMany({ where: { user_id: dbUser.id } });
-
-    await this.prisma.user_topics.createMany({
-      data: uniqueTopicIds.map((topicId) => ({
-        user_id: dbUser.id,
-        topic_id: topicId,
-      })),
-    });
+    await this.prisma.$transaction([
+      this.prisma.user_topics.deleteMany({ where: { user_id: dbUser.id } }),
+      this.prisma.user_topics.createMany({
+        data: uniqueTopicIds.map((topicId) => ({
+          user_id: dbUser.id,
+          topic_id: topicId,
+        })),
+      }),
+    ]);
 
     return { ok: true };
   }

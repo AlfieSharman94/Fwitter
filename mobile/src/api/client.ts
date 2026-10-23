@@ -1,6 +1,7 @@
 // mobile/src/api/client.ts
 import { getIdToken, doSignOut } from "../auth/auth";
 import { API_BASE_URL } from "../config";
+import { publishSessionLost } from "../auth/session";
 
 // Use environment variable if set and not localhost (localhost doesn't work on physical devices),
 // otherwise use config file
@@ -22,6 +23,7 @@ export async function apiFetch(path: string, options: FetchOptions = {}) {
     if (!idToken) {
       // Not signed in locally — force sign out cleanup.
       await doSignOut();
+      publishSessionLost();
       throw new Error("Not authenticated");
     }
     finalHeaders.Authorization = `Bearer ${idToken}`;
@@ -41,7 +43,7 @@ export async function apiFetch(path: string, options: FetchOptions = {}) {
     if (errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
       // Log a single concise error message instead of multiple lines
       console.error(`[API] Cannot reach server at ${BASE_URL}. Is the API running? (cd api && npm run start:dev)`);
-      throw new Error(`Cannot reach API at ${BASE_URL}. Ensure the NestJS API server is running (cd api && npm run start:dev) and the IP address in mobile/src/config.ts matches your machine's IP.`);
+      throw new Error("Can’t reach Fwitter right now. Check your connection and try again.");
     }
     throw e;
   }
@@ -49,6 +51,7 @@ export async function apiFetch(path: string, options: FetchOptions = {}) {
   if (res.status === 401) {
     // Token expired / invalid → clear local auth and let router gate push to sign-in
     await doSignOut();
+    publishSessionLost();
     throw new Error("Session expired. Please sign in again.");
   }
 
@@ -58,6 +61,7 @@ export async function apiFetch(path: string, options: FetchOptions = {}) {
     const refusal = await res.clone().json().catch(() => null);
     if (refusal?.message === "account_banned" || refusal?.message === "account_suspended") {
       await doSignOut();
+      publishSessionLost();
       const until = refusal.until ? new Date(refusal.until).toLocaleDateString() : null;
       throw new Error(
         refusal.message === "account_banned"

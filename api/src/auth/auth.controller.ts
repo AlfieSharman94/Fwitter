@@ -1,7 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
 
+// Both checks are unauthenticated by necessity (they run during sign-up), so they are
+// throttled per IP to keep them from being used to enumerate accounts in bulk.
 @Controller('auth')
+@Throttle({ default: { limit: 20, ttl: 60_000 } })
 export class AuthController {
   constructor(private readonly prisma: PrismaService) {}
 

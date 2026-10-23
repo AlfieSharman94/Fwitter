@@ -6,11 +6,13 @@ import { apiFetch } from "../../src/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts, radii } from "../../src/theme/theme";
+import { useAuth } from "../../src/auth/AuthProvider";
 
 const ONBOARDING_DATA_KEY = "fwitter.onboarding.data";
 
 export default function UsernameScreen() {
   const router = useRouter();
+  const { isSignedIn, signOut } = useAuth();
   const [username, setUsername] = useState("");
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
@@ -191,6 +193,11 @@ export default function UsernameScreen() {
           >
             <Text style={[styles.continueButtonText, !canContinue && styles.continueButtonTextDisabled]}>Continue</Text>
           </Pressable>
+          {isSignedIn && (
+            <Pressable onPress={signOut} hitSlop={8} style={styles.signOutLink}>
+              <Text style={styles.signOutText}>Not you? Sign out</Text>
+            </Pressable>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -274,4 +281,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   continueButtonTextDisabled: { color: colors.textFaint },
+  signOutLink: { alignSelf: "center", marginTop: 14 },
+  signOutText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.textDim },
 });

@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { doConfirmSignUp, doSignIn } from "../../src/auth/auth";
+import { doConfirmSignUp, doResendSignUpCode, doSignIn } from "../../src/auth/auth";
 import { useAuth } from "../../src/auth/AuthProvider";
 import { completeOnboardingProfile } from "../../src/onboarding/completeProfile";
 import * as SecureStore from "expo-secure-store";
@@ -15,6 +15,7 @@ export default function ConfirmSignUpScreen() {
   const router = useRouter();
   const { refreshAuthState } = useAuth();
   const params = useLocalSearchParams<{ email?: string }>();
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +97,21 @@ export default function ConfirmSignUpScreen() {
 
       <View style={styles.content}>
         <Text style={styles.subtitle}>Enter the confirmation code sent to {params.email}</Text>
+        <Pressable
+          onPress={async () => {
+            if (!params.email) return;
+            try {
+              await doResendSignUpCode(params.email);
+              setResendMsg("A new code is on its way.");
+            } catch (e: any) {
+              setResendMsg(e?.message ?? "Couldn’t resend the code.");
+            }
+          }}
+          hitSlop={8}
+          style={styles.resendLink}
+        >
+          <Text style={styles.resendText}>{resendMsg ?? "Didn’t get a code? Resend it"}</Text>
+        </Pressable>
 
         <TextInput
           autoCapitalize="none"
@@ -132,6 +148,8 @@ export default function ConfirmSignUpScreen() {
 }
 
 const styles = StyleSheet.create({
+  resendLink: { alignSelf: "flex-start", marginTop: 4, marginBottom: 8 },
+  resendText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.accent2 },
   container: {
     flex: 1,
     backgroundColor: colors.bg,

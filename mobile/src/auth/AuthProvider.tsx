@@ -5,6 +5,7 @@ import { bootstrapAuth, doSignIn, doSignOut, refreshAuth } from "./auth";
 import { apiFetch } from "../api/client";
 import { unregisterPushToken } from "../notifications/push";
 import { setMe } from "./me";
+import { onSessionLost } from "./session";
 
 type AuthState = {
   isBootstrapping: boolean;
@@ -12,7 +13,8 @@ type AuthState = {
   isOnboarded: boolean | null; // null = unknown, true/false = known
   signIn: (usernameOrEmail: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  checkOnboarding: () => Promise<boolean>;
+  // null when the API could not be reached.
+  checkOnboarding: () => Promise<boolean | null>;
   refreshAuthState: () => Promise<void>;
 };
 
@@ -23,7 +25,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSignedIn, setSignedIn] = useState(false);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
 
-  const checkOnboardingStatus = async (): Promise<boolean> => {
+  // null means "could not tell" (API unreachable): the gate then shows a retry screen
+  // instead of dropping a signed-in user into onboarding.
+  const checkOnboardingStatus = async (): Promise<boolean | null> => {
     try {
       // Try to get user profile to check if they're onboarded
       const profile = await apiFetch("/users/me/profile", { method: "GET" });
@@ -37,8 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const errorMsg = e?.message || "";
       // If API is unavailable, don't throw - just return false (not onboarded)
       // This prevents errors during bootstrap when API server is down
-      if (errorMsg.includes("Cannot reach API") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
-        return false; // Assume not onboarded if API is down
+      if (errorMsg.includes("Can’t reach") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
+        return null;
       }
       // 404 means profile doesn't exist - not onboarded
       if (errorMsg.includes("profile_not_found") || errorMsg.includes("404")) {
@@ -77,6 +81,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, []);
+
+  // The API client signs out locally on an expired or refused session; mirror that here
+  // so the gate sends the user to Welcome straight away.
+  useEffect(
+    () =>
+      onSessionLost(() => {
+        setMe(null);
+        setSignedIn(false);
+        setIsOnboarded(null);
+      }),
+    []
+  );
 
   // Proactively refresh tokens when the app returns to the foreground.
   // This covers the case where the user backgrounds the app for >1 hour.
@@ -117,12 +133,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // If it's a network error (API server not running), still allow sign-in
           // but show a helpful error message
-          if (errorMsg.includes("Cannot reach API") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
-            // API server is down - still mark as signed in (Cognito worked)
-            // but user will see errors when trying to use API features
+          if (errorMsg.includes("Can’t reach") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
+            // Cognito worked but the API is unreachable: stay signed in, the gate shows a retry screen.
             setSignedIn(true);
             setIsOnboarded(null);
-            throw new Error("Signed in successfully, but cannot connect to API server. Please ensure the API is running (cd api && npm run start:dev)");
+            throw new Error("Signed in, but Fwitter can’t be reached right now. Check your connection and try again.");
           }
           
           // For other errors (401, etc.), treat as authentication failure

@@ -143,6 +143,9 @@ export default function ComposeScreen() {
           author_id: me.id,
           parent_post_id: null,
           reply_count: 0,
+          like_count: 0,
+          liked_by_me: false,
+          bookmarked_by_me: false,
           users: {
             username: me.username,
             display_name: me.display_name,

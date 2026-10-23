@@ -7,6 +7,7 @@ export const colors = {
   accent: '#00C853', // primary green
   accentText: '#06210F', // text/icons sitting on top of `accent`
   accent2: '#00AAFF', // secondary blue (checking state, info, verified)
+  like: '#ff3b5c', // liked heart
 
   // Surfaces
   bg: '#0D0D0D', // app background

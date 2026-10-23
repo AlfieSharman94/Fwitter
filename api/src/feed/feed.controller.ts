@@ -46,11 +46,11 @@ export class FeedController {
       },
       orderBy: { created_at: 'desc' },
       take,
-      select: feedPostSelect,
+      select: feedPostSelect(dbUser.id),
     });
 
     const nextCursor = posts.length ? posts[posts.length - 1].created_at.toISOString() : null;
-    return { posts: posts.map(toFeedPost), nextCursor };
+    return { posts: posts.map((p) => toFeedPost(p, dbUser.id)), nextCursor };
   }
 
   @Get('12th-man')
@@ -104,10 +104,10 @@ export class FeedController {
       where,
       orderBy: { created_at: 'desc' },
       take,
-      select: feedPostSelect,
+      select: feedPostSelect(dbUser.id),
     });
 
     const nextCursor = posts.length ? posts[posts.length - 1].created_at.toISOString() : null;
-    return { posts: posts.map(toFeedPost), nextCursor };
+    return { posts: posts.map((p) => toFeedPost(p, dbUser.id)), nextCursor };
   }
 }

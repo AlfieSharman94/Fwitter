@@ -240,13 +240,52 @@ export class UsersController {
     return profile;
   }
 
+  @Get('me/bookmarks')
+  @UseGuards(JwtAuthGuard)
+  async myBookmarks(
+    @CurrentUser() user: { sub: string },
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const dbUser = await this.prisma.users.findUnique({
+      where: { cognito_sub: user.sub },
+      select: { id: true },
+    });
+    if (!dbUser) throw new BadRequestException('profile_not_found');
+
+    const n = Number(limit ?? 20);
+    const take = Number.isFinite(n) ? Math.min(Math.max(n, 1), 50) : 20;
+    // Cursor is the bookmark's own created_at (newest saved first), not the post's.
+    const savedBefore = cursor ? new Date(cursor) : undefined;
+
+    const rows = await this.prisma.bookmarks.findMany({
+      where: {
+        user_id: dbUser.id,
+        ...(savedBefore ? { created_at: { lt: savedBefore } } : {}),
+      },
+      orderBy: { created_at: 'desc' },
+      take,
+      select: { created_at: true, posts: { select: feedPostSelect(dbUser.id) } },
+    });
+
+    const nextCursor = rows.length ? rows[rows.length - 1].created_at.toISOString() : null;
+    return { posts: rows.map((r) => toFeedPost(r.posts, dbUser.id)), nextCursor };
+  }
+
   @Get(':id/posts')
   @UseGuards(JwtAuthGuard)
   async getUserPosts(
+    @CurrentUser() user: { sub: string },
     @Param('id') targetUserId: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
+    const viewer = await this.prisma.users.findUnique({
+      where: { cognito_sub: user.sub },
+      select: { id: true },
+    });
+    if (!viewer) throw new BadRequestException('profile_not_found');
+
     const n = Number(limit ?? 20);
     const take = Number.isFinite(n) ? Math.min(Math.max(n, 1), 50) : 20;
     const createdBefore = cursor ? new Date(cursor) : undefined;
@@ -259,11 +298,11 @@ export class UsersController {
       },
       orderBy: { created_at: 'desc' },
       take,
-      select: feedPostSelect,
+      select: feedPostSelect(viewer.id),
     });
 
     const nextCursor = posts.length ? posts[posts.length - 1].created_at.toISOString() : null;
-    return { posts: posts.map(toFeedPost), nextCursor };
+    return { posts: posts.map((p) => toFeedPost(p, viewer.id)), nextCursor };
   }
 
   @Post(':id/follow')

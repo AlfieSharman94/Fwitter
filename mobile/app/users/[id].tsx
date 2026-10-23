@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import type { FeedPost } from "../../src/feed/feedTypes";
 import { PostCard } from "../../src/components/PostCard";
+import type { PatchPost } from "../../src/feed/engagement";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 type UserProfile = {
@@ -137,6 +138,10 @@ export default function UserProfileScreen() {
     }
   };
 
+  const patchPost: PatchPost = (id, patch) => {
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  };
+
   const handleDeletePost = (postId: string) => {
     Alert.alert("Delete post", "This can’t be undone.", [
       { text: "Cancel", style: "cancel" },
@@ -260,6 +265,7 @@ export default function UserProfileScreen() {
               <PostCard
                 key={p.id}
                 post={p}
+                onPatch={patchPost}
                 onDelete={profile.isSelf ? () => handleDeletePost(p.id) : undefined}
               />
             ))

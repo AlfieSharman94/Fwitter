@@ -38,7 +38,7 @@ const navTheme = {
 };
 
 function Gate() {
-  const { isBootstrapping, isSignedIn, isOnboarded, refreshAuthState, signOut } = useAuth();
+  const { isBootstrapping, isSignedIn, isOnboarded, consentPending, refreshAuthState, signOut } = useAuth();
   const [retrying, setRetrying] = useState(false);
   const segments = useSegments();
   const router = useRouter();
@@ -53,6 +53,7 @@ function Gate() {
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
     const isWelcomeSuccess = segments[0] === 'welcome-success';
+    const inConsentPending = segments[0] === 'consent-pending';
 
     if (!isSignedIn) {
       // Not signed in - allow auth + onboarding groups.
@@ -71,12 +72,16 @@ function Gate() {
       // backend), and that exclusion let them sit there instead of being sent to onboarding.
       if (isOnboarded === false && !inOnboardingGroup) {
         router.replace('/(onboarding)/username');
-      } else if (isOnboarded === true && (inAuthGroup || inOnboardingGroup)) {
+      } else if (isOnboarded === true && consentPending === true && !inConsentPending) {
+        // A 13 to 15 year old waits here until a parent or guardian confirms; the API
+        // refuses everything else with consent_pending, so there is nowhere else to go.
+        router.replace('/consent-pending');
+      } else if (isOnboarded === true && consentPending === false && (inAuthGroup || inOnboardingGroup || inConsentPending)) {
         router.replace('/(tabs)');
       }
-      // If isOnboarded is null, wait for it to be determined.
+      // If isOnboarded or consentPending is null, wait for it to be determined.
     }
-  }, [isBootstrapping, isSignedIn, isOnboarded, segments, router]);
+  }, [isBootstrapping, isSignedIn, isOnboarded, consentPending, segments, router]);
 
   // Show loading screen during bootstrap
   if (isBootstrapping) {
@@ -136,6 +141,7 @@ function Gate() {
         <Stack.Screen name="dm/[id]" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="welcome-success" />
+        <Stack.Screen name="consent-pending" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
       </Stack>

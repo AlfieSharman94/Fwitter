@@ -233,6 +233,7 @@ export class AdminService {
         suspended_until: true,
         banned_at: true,
         verified_at: true,
+        guardian_consent: { select: { guardian_email: true, sent_at: true, confirmed_at: true } },
         posts: {
           where: { repost_of_id: null },
           orderBy: { created_at: 'desc' },

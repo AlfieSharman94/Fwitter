@@ -9,6 +9,8 @@ type OnboardingData = {
   primaryTeamId?: string;
   teamIds?: string[];
   topicIds?: string[];
+  // Parent or guardian's email, collected on step 2 for 13 to 15 year olds.
+  guardianEmail?: string | null;
 };
 
 /**
@@ -49,5 +51,9 @@ export async function completeOnboardingProfile(data: OnboardingData) {
     }),
   });
 
-  await apiFetch("/users/me/onboarding/complete", { method: "POST" });
+  // For a JUNIOR account the server emails the guardian a consent link from here.
+  await apiFetch("/users/me/onboarding/complete", {
+    method: "POST",
+    body: JSON.stringify(data.guardianEmail ? { guardianEmail: data.guardianEmail } : {}),
+  });
 }

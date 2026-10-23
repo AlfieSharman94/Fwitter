@@ -33,6 +33,12 @@ Returns the authenticated user's identity (from JWT / DB linkage).
 Response:
 - 200 { ok: true, user: { sub: string, email?: string } }
 
+### GET /users/me/profile
+Returns the signed-in user's own profile row.
+Response:
+- 200 { user: { id, username, display_name, email, is_onboarded, date_of_birth, created_at, bio, profile_image_url, verified_at, age_tier, public_profile, guardian_consent: { guardian_email, sent_at, confirmed_at } | null, consent_pending: boolean } }
+- consent_pending is true for a JUNIOR (13 to 15) account that finished onboarding but has no guardian confirmation yet. Every other protected route then answers 403 { message: "consent_pending" }, except GET /users/me, this route, the onboarding routes, the guardian routes below, DELETE /users/me and DELETE /notifications/push-token.
+
 ### POST /users/me/profile
 Creates or returns an existing user profile row linked to Cognito user.
 Body:
@@ -69,9 +75,25 @@ Response:
 - 200 { ok: true }
 
 ### POST /users/me/onboarding/complete
-Marks onboarding as complete.
+Marks onboarding as complete. For a JUNIOR account this also records the guardian and emails them a consent link (valid 7 days, single use); re-running it with the same email does not resend.
+Body:
+- { guardianEmail?: string }   (needed for JUNIOR accounts; ignored for STANDARD)
 Response:
-- 200 { ok: true }
+- 200 { ok: true, consent: { guardian_email, sent_at, confirmed_at } | null }
+
+### PATCH /users/me/guardian
+Sets or changes the guardian email of a JUNIOR account and sends a fresh consent link. 5 a minute.
+Body:
+- { guardianEmail: string }
+Response:
+- 200 { ok: true, consent: { guardian_email, sent_at, confirmed_at } }
+- 400 consent_not_required | consent_already_confirmed | guardian_email_same_as_user
+
+### POST /users/me/guardian/resend
+Sends the consent link again. 5 a minute, and at most once a minute per account.
+Response:
+- 200 { ok: true, consent: { guardian_email, sent_at, confirmed_at } }
+- 404 consent_not_requested, 429 consent_email_recently_sent, 503 consent_email_failed
 
 ### GET /users/:id
 Returns public profile for a user (requires auth to determine isFollowing).
@@ -145,6 +167,21 @@ Response:
   }
 - 400 { message: "viewer_profile_not_found" }
 - 404 { message: "user_not_found" }
+
+---
+
+## Guardian consent (Public)
+
+Opened from the consent email; the token in the path is the only credential. 10 requests a minute per IP. All three answer with HTML.
+
+### GET /consent/:token
+Page naming the child's @username with two buttons: confirm, or decline and delete the account. Expired, used or unknown links get an explanation page. Nothing changes on GET.
+
+### POST /consent/:token/confirm
+Records the consent (confirmed_at), burns the token and unblocks the account.
+
+### POST /consent/:token/decline
+Deletes the Cognito user and the account (cascade), leaving a GUARDIAN_DELETE_USER audit row.
 
 ---
 

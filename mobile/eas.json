@@ -6,10 +6,22 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_AWS_REGION": "eu-north-1",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "eu-north-1_f8sV2Qsf0",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_CLIENT_ID": "444hv012l8fg5m5j0f1epntkp7",
+        "EXPO_PUBLIC_API_BASE_URL": "https://fwitter-production.up.railway.app"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_AWS_REGION": "eu-north-1",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "eu-north-1_f8sV2Qsf0",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_CLIENT_ID": "444hv012l8fg5m5j0f1epntkp7",
+        "EXPO_PUBLIC_API_BASE_URL": "https://fwitter-production.up.railway.app"
+      }
     },
     "production": {
       "autoIncrement": true

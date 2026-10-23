@@ -109,6 +109,11 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
     router.push("/settings");
   };
 
+  const handleSaved = () => {
+    onClose();
+    router.push("/bookmarks");
+  };
+
   const handleClubLounge = () => {
     // No-op for now
     onClose();
@@ -170,6 +175,16 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
                   <Ionicons name="person" size={20} color={colors.text} />
                 </View>
                 <Text style={styles.navText}>Profile</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
+            </Pressable>
+
+            <Pressable style={styles.navItem} onPress={handleSaved}>
+              <View style={styles.navItemContent}>
+                <View style={styles.navIcon}>
+                  <Ionicons name="bookmark" size={20} color={colors.text} />
+                </View>
+                <Text style={styles.navText}>Saved</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
             </Pressable>

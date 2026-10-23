@@ -2,10 +2,13 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { FeedPost } from "../feed/feedTypes";
+import { toggleBookmark, toggleLike, type PatchPost } from "../feed/engagement";
 import { colors, fonts } from "../theme/theme";
 
 type Props = {
   post: FeedPost;
+  // Applies like/bookmark changes to the list that owns this post.
+  onPatch: PatchPost;
   // Tapping the card opens the post. Off for the main post on its own screen.
   pressable?: boolean;
   // Overrides what the reply action does (default: open the post).
@@ -14,7 +17,7 @@ type Props = {
   onDelete?: () => void;
 };
 
-export function PostCard({ post, pressable = true, onReplyPress, onDelete }: Props) {
+export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDelete }: Props) {
   const router = useRouter();
   const teams = post.post_teams.map((x) => x.teams.name);
   const topics = post.post_topics.map((x) => x.topics.name);
@@ -80,6 +83,26 @@ export function PostCard({ post, pressable = true, onReplyPress, onDelete }: Pro
             <Pressable style={styles.action} onPress={replyAction} hitSlop={8}>
               <Ionicons name="chatbubble-outline" size={17} color={colors.textDim} />
               {post.reply_count > 0 && <Text style={styles.actionCount}>{post.reply_count}</Text>}
+            </Pressable>
+            <Pressable style={styles.action} onPress={() => toggleLike(post, onPatch)} hitSlop={8}>
+              <Ionicons
+                name={post.liked_by_me ? "heart" : "heart-outline"}
+                size={18}
+                color={post.liked_by_me ? colors.like : colors.textDim}
+              />
+              {/* like_count is null unless you're the author: others only see the heart. */}
+              {post.like_count !== null && post.like_count > 0 && (
+                <Text style={[styles.actionCount, post.liked_by_me && styles.actionCountLiked]}>
+                  {post.like_count}
+                </Text>
+              )}
+            </Pressable>
+            <Pressable style={[styles.action, styles.actionEnd]} onPress={() => toggleBookmark(post, onPatch)} hitSlop={8}>
+              <Ionicons
+                name={post.bookmarked_by_me ? "bookmark" : "bookmark-outline"}
+                size={17}
+                color={post.bookmarked_by_me ? colors.accent2 : colors.textDim}
+              />
             </Pressable>
           </View>
         </View>
@@ -198,5 +221,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
     color: colors.textDim,
+  },
+  actionCountLiked: {
+    color: colors.like,
+  },
+  actionEnd: {
+    marginLeft: "auto",
+    minWidth: 0,
   },
 });

@@ -15,13 +15,41 @@ export class PostsController {
     return Number.isFinite(n) ? Math.min(Math.max(n, 1), 50) : 20;
   }
 
-  @Post()
-  async create(@CurrentUser() user: { sub: string }, @Body() dto: CreatePostDto) {
+  private async requireViewer(sub: string) {
     const dbUser = await this.prisma.users.findUnique({
-      where: { cognito_sub: user.sub },
+      where: { cognito_sub: sub },
       select: { id: true },
     });
     if (!dbUser) throw new BadRequestException('profile_not_found');
+    return dbUser;
+  }
+
+  private async requirePost(id: string) {
+    const post = await this.prisma.posts.findUnique({
+      where: { id },
+      select: { id: true, author_id: true },
+    });
+    if (!post) throw new NotFoundException('post_not_found');
+    return post;
+  }
+
+  // Same rule as post-shape.ts: the like count is only revealed to the author.
+  private async likeState(post: { id: string; author_id: string }, viewerId: string) {
+    const [liked, like_count] = await Promise.all([
+      this.prisma.post_likes.findUnique({
+        where: { post_id_user_id: { post_id: post.id, user_id: viewerId } },
+        select: { user_id: true },
+      }),
+      post.author_id === viewerId
+        ? this.prisma.post_likes.count({ where: { post_id: post.id } })
+        : Promise.resolve(null),
+    ]);
+    return { liked: !!liked, like_count };
+  }
+
+  @Post()
+  async create(@CurrentUser() user: { sub: string }, @Body() dto: CreatePostDto) {
+    const dbUser = await this.requireViewer(user.sub);
 
     const content = dto.content.trim();
     if (!content) throw new BadRequestException('content_required');
@@ -60,7 +88,7 @@ export class PostsController {
           content,
           parent_post_id: dto.parentPostId ?? null,
         },
-        select: feedPostSelect,
+        select: { id: true },
       });
 
       if (teamIds.length) {
@@ -75,18 +103,21 @@ export class PostsController {
         });
       }
 
-      return post;
+      // Re-read with the tags attached so the response matches what the feeds return.
+      return tx.posts.findUniqueOrThrow({ where: { id: post.id }, select: feedPostSelect(dbUser.id) });
     });
 
-    return { ok: true, post: toFeedPost(created) };
+    return { ok: true, post: toFeedPost(created, dbUser.id) };
   }
 
   @Get(':id')
-  async getOne(@Param('id') id: string) {
+  async getOne(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+
     const post = await this.prisma.posts.findUnique({
       where: { id },
       select: {
-        ...feedPostSelect,
+        ...feedPostSelect(viewer.id),
         // `posts` is the self-relation to the parent, used for "Replying to @name".
         posts: { select: { id: true, users: { select: { username: true } } } },
       },
@@ -96,13 +127,19 @@ export class PostsController {
 
     const { posts: parent, ...rest } = post;
     return {
-      post: toFeedPost(rest),
+      post: toFeedPost(rest, viewer.id),
       parent: parent ? { id: parent.id, username: parent.users.username } : null,
     };
   }
 
   @Get(':id/replies')
-  async replies(@Param('id') id: string, @Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+  async replies(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const viewer = await this.requireViewer(user.sub);
     const take = this.parseLimit(limit);
     const createdBefore = cursor ? new Date(cursor) : undefined;
 
@@ -113,20 +150,54 @@ export class PostsController {
       },
       orderBy: { created_at: 'desc' },
       take,
-      select: feedPostSelect,
+      select: feedPostSelect(viewer.id),
     });
 
     const nextCursor = replies.length ? replies[replies.length - 1].created_at.toISOString() : null;
-    return { replies: replies.map(toFeedPost), nextCursor };
+    return { replies: replies.map((r) => toFeedPost(r, viewer.id)), nextCursor };
+  }
+
+  @Post(':id/like')
+  async like(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requirePost(id);
+    await this.prisma.post_likes.createMany({
+      data: [{ post_id: post.id, user_id: viewer.id }],
+      skipDuplicates: true, // liking twice is a no-op, not an error
+    });
+    return this.likeState(post, viewer.id);
+  }
+
+  @Delete(':id/like')
+  async unlike(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requirePost(id);
+    await this.prisma.post_likes.deleteMany({ where: { post_id: post.id, user_id: viewer.id } });
+    return this.likeState(post, viewer.id);
+  }
+
+  @Post(':id/bookmark')
+  async bookmark(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requirePost(id);
+    await this.prisma.bookmarks.createMany({
+      data: [{ user_id: viewer.id, post_id: post.id }],
+      skipDuplicates: true,
+    });
+    return { bookmarked: true };
+  }
+
+  @Delete(':id/bookmark')
+  async unbookmark(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requirePost(id);
+    await this.prisma.bookmarks.deleteMany({ where: { user_id: viewer.id, post_id: post.id } });
+    return { bookmarked: false };
   }
 
   @Delete(':id')
   async remove(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
-    const dbUser = await this.prisma.users.findUnique({
-      where: { cognito_sub: user.sub },
-      select: { id: true },
-    });
-    if (!dbUser) throw new BadRequestException('profile_not_found');
+    const dbUser = await this.requireViewer(user.sub);
 
     const post = await this.prisma.posts.findUnique({
       where: { id },
@@ -135,7 +206,7 @@ export class PostsController {
     if (!post) throw new NotFoundException('post_not_found');
     if (post.author_id !== dbUser.id) throw new ForbiddenException('not_your_post');
 
-    // Hard delete — post_teams/post_topics and any replies cascade via FK onDelete.
+    // Hard delete — post_teams/post_topics, likes, bookmarks and any replies cascade via FK onDelete.
     await this.prisma.posts.delete({ where: { id } });
     return { ok: true };
   }

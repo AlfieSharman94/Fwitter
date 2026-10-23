@@ -36,7 +36,8 @@ export default function TopicsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch(`/topics/search?q=${encodeURIComponent(searchQuery)}`);
+      // Public endpoint; the user is not signed in yet during onboarding.
+      const data = await apiFetch(`/topics/search?q=${encodeURIComponent(searchQuery)}`, { auth: false });
       setTopics(data.topics ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to search topics");

@@ -22,7 +22,6 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const hasLoadedRef = useRef(false);
   const apiUnavailableRef = useRef(false); // Track if API is unavailable to prevent repeated retries
 
   const loadFeed = useCallback(
@@ -70,8 +69,6 @@ export default function HomeScreen() {
       } finally {
         if (!append) {
           setLoading(false);
-          // Mark as loaded after first fetch completes (success or error)
-          hasLoadedRef.current = true;
         } else {
           setLoadingMore(false);
         }
@@ -79,10 +76,6 @@ export default function HomeScreen() {
     },
     [feedType]
   );
-
-  useEffect(() => {
-    loadFeed();
-  }, [feedType, loadFeed]);
 
   // Instantly show the current user's own new post (published by the composer)
   // without waiting for a refetch. Dedup by id so a later refetch can't double it.
@@ -93,14 +86,15 @@ export default function HomeScreen() {
     return unsubscribe;
   }, []);
 
-  // Refresh when screen comes into focus (e.g., after posting)
+  // Loads on mount, when the feed type changes (new loadFeed identity), and whenever the
+  // screen regains focus (e.g. after posting). Deps are deliberately just loadFeed: having
+  // `loading` in them re-ran this after every fetch and started another one, so the feed
+  // refetched forever while the screen was focused. loadFeed already no-ops while the API
+  // is marked unavailable.
   useFocusEffect(
     useCallback(() => {
-      // Only refresh if we've loaded before (avoid refresh on initial mount) and API is available
-      if (hasLoadedRef.current && !loading && !refreshing && !apiUnavailableRef.current) {
-        loadFeed();
-      }
-    }, [loading, refreshing, loadFeed])
+      loadFeed();
+    }, [loadFeed])
   );
 
   const handleRefresh = useCallback(() => {

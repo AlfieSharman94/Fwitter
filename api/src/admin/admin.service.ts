@@ -76,7 +76,7 @@ export class AdminService {
           },
         },
         reported: {
-          select: { id: true, username: true, display_name: true, suspended_until: true, banned_at: true, role: true },
+          select: { id: true, username: true, display_name: true, suspended_until: true, banned_at: true, role: true, verified_at: true },
         },
       },
     });
@@ -198,6 +198,7 @@ export class AdminService {
         created_at: true,
         suspended_until: true,
         banned_at: true,
+        verified_at: true,
         _count: { select: { reports_received: true, posts: true } },
       },
     });
@@ -219,6 +220,7 @@ export class AdminService {
         created_at: true,
         suspended_until: true,
         banned_at: true,
+        verified_at: true,
         posts: {
           where: { repost_of_id: null },
           orderBy: { created_at: 'desc' },
@@ -302,6 +304,14 @@ export class AdminService {
     this.moderation.invalidateStatus(id);
     await this.log(actor, 'UNBAN_USER', { userId: id }, note);
     return { ok: true };
+  }
+
+  // Admin only. The badge is editorial, so it has no side effects beyond the flag and the log.
+  async setVerified(actor: Actor, id: string, verified: boolean) {
+    await this.requireUser(id);
+    await this.prisma.users.update({ where: { id }, data: { verified_at: verified ? new Date() : null } });
+    await this.log(actor, verified ? 'VERIFY_USER' : 'UNVERIFY_USER', { userId: id });
+    return { ok: true, verified };
   }
 
   async setRole(actor: Actor, id: string, role: Role) {

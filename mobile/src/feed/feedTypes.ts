@@ -33,7 +33,7 @@ export type FeedPostBase = {
   bookmarked_by_me: boolean;
   repost_count: number | null;
   reposted_by_me: boolean;
-  users: { username: string; display_name: string; profile_image_url: string | null };
+  users: { username: string; display_name: string; profile_image_url: string | null; verified_at: string | null };
   post_teams: { teams: { id: string; name: string } }[];
   post_topics: { topics: { id: string; name: string } }[];
 };

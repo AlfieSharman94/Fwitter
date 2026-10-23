@@ -21,6 +21,7 @@ type ConnectionUser = {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  isVerified: boolean;
   isFollowing: boolean;
 };
 
@@ -136,7 +137,10 @@ export function UserConnectionsList({ userId, type }: Props) {
                   </View>
                 )}
                 <View style={styles.userDetails}>
-                  <Text style={styles.displayName}>{item.displayName}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    <Text style={styles.displayName}>{item.displayName}</Text>
+                    {item.isVerified && <Ionicons name="checkmark-circle" size={15} color={colors.accent2} />}
+                  </View>
                   <Text style={styles.username}>@{item.username}</Text>
                 </View>
               </View>

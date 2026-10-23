@@ -425,6 +425,8 @@ enum ModerationAction {
   BAN_USER
   UNBAN_USER
   SET_ROLE
+  VERIFY_USER
+  UNVERIFY_USER
   DISMISS_REPORTS
   ADD_BANNED_WORD
   REMOVE_BANNED_WORD
@@ -461,6 +463,8 @@ model users {
   is_onboarded                        Boolean       @default(false)
   age_tier                            AgeTier       @default(STANDARD)
   role                                Role          @default(USER)
+  /// Admin-granted badge (clubs, journalists, staff). Shown next to the name.
+  verified_at                         DateTime?     @db.Timestamptz(6)
   /// Set by moderators. Checked on every authenticated request (cached briefly).
   suspended_until                     DateTime?     @db.Timestamptz(6)
   banned_at                           DateTime?     @db.Timestamptz(6)

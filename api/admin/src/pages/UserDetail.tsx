@@ -5,7 +5,7 @@ import type { Me, Role, UserDetail as Detail } from '../types';
 import { userStatus } from '../types';
 import { Media } from '../Media';
 
-type Target = { id: string; username: string; role: Role; suspended_until: string | null; banned_at: string | null };
+type Target = { id: string; username: string; role: Role; suspended_until: string | null; banned_at: string | null; verified_at: string | null };
 
 // Warn / suspend / unsuspend / ban / unban / role, shared by the queue and the detail page.
 export function UserActions({
@@ -36,6 +36,11 @@ export function UserActions({
       ) : (
         <button className="danger" onClick={() => { if (!confirm(`Ban @${user.username}? They lose access immediately.`)) return; const n = askNote('Note (optional)'); if (n !== null) run(() => api(`/admin/users/${user.id}/ban`, { method: 'POST', body: JSON.stringify({ note: n }) })); }}>Ban</button>
       ))}
+      {me.role === 'ADMIN' && (
+        <button onClick={() => run(() => api(`/admin/users/${user.id}/${user.verified_at ? 'unverify' : 'verify'}`, { method: 'POST', body: '{}' }))}>
+          {user.verified_at ? 'Remove badge' : 'Verify'}
+        </button>
+      )}
       {me.role === 'ADMIN' && (
         <select value={user.role} onChange={(e) => run(() => api(`/admin/users/${user.id}/role`, { method: 'POST', body: JSON.stringify({ role: e.target.value }) }))}>
           <option value="USER">USER</option>
@@ -86,6 +91,7 @@ export default function UserDetail({ me }: { me: Me }) {
           <div>
             <span className={`pill ${user.role}`}>{user.role}</span>
             <span className={`pill ${status}`}>{status}</span>
+            {user.verified_at && <span className="pill verified">verified</span>}
             <span className="pill">{user.age_tier}</span>
             <b>{user.display_name}</b> <span className="muted">· {user.email}</span>
             <div className="dim">

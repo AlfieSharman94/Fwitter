@@ -138,7 +138,7 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
           <View style={styles.postHeader}>
             <Pressable onPress={openAuthor} style={styles.postHeaderLeft}>
               <Text style={styles.postAuthor}>{shown.users.display_name}</Text>
-              <Ionicons name="checkmark-circle" size={14} color={colors.accent2} />
+              {shown.users.verified_at && <Ionicons name="checkmark-circle" size={14} color={colors.accent2} />}
               <Text style={styles.postUsername}>@{shown.users.username}</Text>
               <Text style={styles.postTime}>· {timeAgo}</Text>
             </Pressable>
@@ -242,6 +242,7 @@ export function QuotedPost({ post }: { post: FeedPostBase }) {
         <Text style={styles.quoteAuthor} numberOfLines={1}>
           {post.users.display_name}
         </Text>
+        {post.users.verified_at && <Ionicons name="checkmark-circle" size={13} color={colors.accent2} />}
         <Text style={styles.quoteMeta} numberOfLines={1}>
           @{post.users.username} · {getTimeAgo(new Date(post.created_at))}
         </Text>

@@ -25,6 +25,7 @@ type UserProfile = {
   isSelf: boolean;
   isBlocked: boolean;
   hasBlockedMe: boolean;
+  isVerified: boolean;
 };
 
 export default function UserProfileScreen() {
@@ -258,7 +259,10 @@ export default function UserProfileScreen() {
             </View>
           )}
 
-          <Text style={styles.displayName}>{profile.displayName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.displayName}>{profile.displayName}</Text>
+            {profile.isVerified && <Ionicons name="checkmark-circle" size={22} color={colors.accent2} />}
+          </View>
           <Text style={styles.username}>@{profile.username}</Text>
 
           {!profile.isSelf && profile.isBlocked && (
@@ -414,12 +418,17 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: colors.textBody,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
   displayName: {
     fontFamily: fonts.display,
     fontSize: 26,
     color: colors.text,
     textTransform: "uppercase",
-    marginBottom: 4,
   },
   username: {
     fontSize: 15,

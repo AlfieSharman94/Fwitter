@@ -22,6 +22,7 @@ export class SearchService {
       username: string;
       displayName: string;
       avatarUrl: string | null;
+      isVerified: boolean;
       isFollowing: boolean;
     }>
   > {
@@ -48,6 +49,7 @@ export class SearchService {
         username: true,
         display_name: true,
         profile_image_url: true,
+        verified_at: true,
       },
       orderBy: { username: 'asc' },
     });
@@ -71,6 +73,7 @@ export class SearchService {
       username: u.username,
       displayName: u.display_name,
       avatarUrl: u.profile_image_url,
+      isVerified: !!u.verified_at,
       isFollowing: followingMap.get(u.id) ?? false,
     }));
   }

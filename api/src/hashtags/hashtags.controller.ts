@@ -9,6 +9,36 @@ import { feedPostSelect, toFeedPost } from '../posts/post-shape';
 export class HashtagsController {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Most-used tags over the last 24 hours (last 7 days if the day is quiet).
+  @Get('trending')
+  async trending() {
+    const top = async (since: Date) => {
+      const groups = await this.prisma.post_hashtags.groupBy({
+        by: ['hashtag_id'],
+        where: { posts: { created_at: { gt: since } } },
+        _count: { post_id: true },
+        orderBy: { _count: { post_id: 'desc' } },
+        take: 10,
+      });
+      if (!groups.length) return [];
+      const tags = await this.prisma.hashtags.findMany({
+        where: { id: { in: groups.map((g) => g.hashtag_id) } },
+        select: { id: true, tag: true },
+      });
+      const byId = new Map(tags.map((t) => [t.id, t.tag]));
+      return groups.map((g) => ({ tag: byId.get(g.hashtag_id)!, posts: g._count.post_id }));
+    };
+
+    const day = 24 * 60 * 60 * 1000;
+    let trending = await top(new Date(Date.now() - day));
+    let window: 'day' | 'week' = 'day';
+    if (!trending.length) {
+      trending = await top(new Date(Date.now() - 7 * day));
+      window = 'week';
+    }
+    return { trending, window };
+  }
+
   // Every post (top-level or reply) carrying the tag, newest first.
   @Get(':tag/posts')
   async posts(

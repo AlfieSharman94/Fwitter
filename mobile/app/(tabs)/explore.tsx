@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, StyleSheet, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import { followErrorMessage } from "../../src/lib/followErrors";
@@ -22,6 +22,22 @@ export default function ExploreScreen() {
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [trending, setTrending] = useState<{ tag: string; posts: number }[]>([]);
+  const [trendingWindow, setTrendingWindow] = useState<"day" | "week">("day");
+
+  // Refreshed each time the tab is opened; cheap on the server.
+  useFocusEffect(
+    useCallback(() => {
+      apiFetch("/hashtags/trending")
+        .then((data) => {
+          setTrending(data?.trending ?? []);
+          setTrendingWindow(data?.window === "week" ? "week" : "day");
+        })
+        .catch(() => {
+          // Non-fatal: the section just stays hidden.
+        });
+    }, [])
+  );
 
   const handleSearch = useCallback(async () => {
     const trimmed = query.trim();
@@ -125,6 +141,26 @@ export default function ExploreScreen() {
       </View>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
+
+      {users.length === 0 && query.trim().length < 2 && trending.length > 0 && (
+        <View style={styles.trending}>
+          <Text style={styles.trendingTitle}>
+            Trending {trendingWindow === "day" ? "today" : "this week"}
+          </Text>
+          {trending.map((t, i) => (
+            <Pressable key={t.tag} style={styles.trendingRow} onPress={() => router.push(`/hashtags/${t.tag}`)}>
+              <Text style={styles.trendingRank}>{i + 1}</Text>
+              <View style={styles.trendingBody}>
+                <Text style={styles.trendingTag}>#{t.tag}</Text>
+                <Text style={styles.trendingCount}>
+                  {t.posts} {t.posts === 1 ? "post" : "posts"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {users.length > 0 && (
         <FlatList
@@ -312,6 +348,48 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.rowDivider,
     marginLeft: 76,
+  },
+  trending: {
+    paddingTop: 16,
+  },
+  trendingTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 14,
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  trendingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.rowDivider,
+  },
+  trendingRank: {
+    width: 22,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: colors.textDim,
+    textAlign: "center",
+  },
+  trendingBody: {
+    flex: 1,
+  },
+  trendingTag: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 16,
+    color: colors.accent2,
+  },
+  trendingCount: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textDim,
+    marginTop: 2,
   },
   emptyContainer: {
     flex: 1,

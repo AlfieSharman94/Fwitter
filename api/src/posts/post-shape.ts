@@ -16,6 +16,9 @@ function basePostSelect(viewerId: string) {
     author_id: true,
     parent_post_id: true,
     quoted_post_id: true,
+    like_count: true,
+    reply_count: true,
+    repost_count: true,
     users: { select: { username: true, display_name: true, profile_image_url: true } },
     post_teams: { select: { teams: { select: { id: true, name: true } } } },
     post_topics: { select: { topics: { select: { id: true, name: true } } } },
@@ -37,8 +40,6 @@ function basePostSelect(viewerId: string) {
         _count: { select: { poll_votes: true } },
       },
     },
-    // other_posts is the self-relation back-reference: this post's replies.
-    _count: { select: { other_posts: true, post_likes: true, reposts: true } },
   } satisfies Prisma.postsSelect;
 }
 
@@ -85,7 +86,7 @@ type RawQuoting = Prisma.postsGetPayload<{ select: ReturnType<typeof quotingPost
 type RawFeed = Prisma.postsGetPayload<{ select: ReturnType<typeof feedPostSelect> }>;
 
 function toBasePost(row: RawBase, viewerId: string) {
-  const { _count, post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, ...rest } = row;
+  const { post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, like_count, repost_count, ...rest } = row;
   const isAuthor = row.author_id === viewerId;
   return {
     ...rest,
@@ -93,11 +94,11 @@ function toBasePost(row: RawBase, viewerId: string) {
     mentions: post_mentions.map((m) => m.users),
     hashtags: post_hashtags.map((h) => h.hashtags.tag),
     poll: polls ? toPoll(polls, isAuthor) : null,
-    reply_count: _count.other_posts,
-    like_count: isAuthor ? _count.post_likes : null,
+    // Counters live on the row (maintained with the writes); counts stay author-only.
+    like_count: isAuthor ? like_count : null,
     liked_by_me: post_likes.length > 0,
     bookmarked_by_me: bookmarks.length > 0,
-    repost_count: isAuthor ? _count.reposts : null,
+    repost_count: isAuthor ? repost_count : null,
     reposted_by_me: reposts.length > 0,
   };
 }

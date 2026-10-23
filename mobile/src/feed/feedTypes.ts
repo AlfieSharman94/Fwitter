@@ -8,6 +8,9 @@ export type FeedPostBase = {
   parent_post_id: string | null;
   // Set when this post quotes another. Both this and quoted_post become null if that post is deleted.
   quoted_post_id: string | null;
+  // Entities resolved by the server: only these @names and #tags render as links.
+  mentions: { id: string; username: string }[];
+  hashtags: string[];
   reply_count: number;
   // Counts are null unless the viewer is the author: they are hidden from everyone else.
   like_count: number | null;

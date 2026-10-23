@@ -19,6 +19,8 @@ function basePostSelect(viewerId: string) {
     users: { select: { username: true, display_name: true, profile_image_url: true } },
     post_teams: { select: { teams: { select: { id: true, name: true } } } },
     post_topics: { select: { topics: { select: { id: true, name: true } } } },
+    post_mentions: { select: { users: { select: { id: true, username: true } } } },
+    post_hashtags: { select: { hashtags: { select: { tag: true } } } },
     post_likes: { where: { user_id: viewerId }, select: { user_id: true } },
     bookmarks: { where: { user_id: viewerId }, select: { user_id: true } },
     // The viewer's own plain repost of this post, if any.
@@ -51,10 +53,13 @@ type RawQuoting = Prisma.postsGetPayload<{ select: ReturnType<typeof quotingPost
 type RawFeed = Prisma.postsGetPayload<{ select: ReturnType<typeof feedPostSelect> }>;
 
 function toBasePost(row: RawBase, viewerId: string) {
-  const { _count, post_likes, bookmarks, reposts, ...rest } = row;
+  const { _count, post_likes, bookmarks, reposts, post_mentions, post_hashtags, ...rest } = row;
   const isAuthor = row.author_id === viewerId;
   return {
     ...rest,
+    // Resolved entities, so the client only links @names and #tags that exist.
+    mentions: post_mentions.map((m) => m.users),
+    hashtags: post_hashtags.map((h) => h.hashtags.tag),
     reply_count: _count.other_posts,
     like_count: isAuthor ? _count.post_likes : null,
     liked_by_me: post_likes.length > 0,

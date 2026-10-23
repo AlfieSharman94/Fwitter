@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { FeedPost, FeedPostBase, FeedPostQuoting } from "../feed/feedTypes";
 import { toggleBookmark, toggleLike, toggleRepost, type PatchPost } from "../feed/engagement";
+import { PostText } from "./PostText";
 import { colors, fonts, radii } from "../theme/theme";
 
 type Props = {
@@ -79,7 +80,12 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
             )}
           </View>
 
-          <Text style={styles.postContent}>{shown.content}</Text>
+          <PostText
+            content={shown.content}
+            mentions={shown.mentions}
+            hashtags={shown.hashtags}
+            style={styles.postContent}
+          />
 
           {shown.quoted_post && <QuotedPost post={shown.quoted_post} />}
 
@@ -154,9 +160,13 @@ export function QuotedPost({ post }: { post: FeedPostBase }) {
           @{post.users.username} · {getTimeAgo(new Date(post.created_at))}
         </Text>
       </View>
-      <Text style={styles.quoteContent} numberOfLines={6}>
-        {post.content}
-      </Text>
+      <PostText
+        content={post.content}
+        mentions={post.mentions}
+        hashtags={post.hashtags}
+        style={styles.quoteContent}
+        numberOfLines={6}
+      />
     </Pressable>
   );
 }

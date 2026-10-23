@@ -8,13 +8,14 @@ import { getTimeAgo } from "../../src/components/PostCard";
 import { setUnread } from "../../src/notifications/unread";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
-type ActivityType = "REPLY" | "MENTION" | "QUOTE" | "LIKE" | "REPOST" | "FOLLOW";
+type ActivityType = "REPLY" | "MENTION" | "QUOTE" | "LIKE" | "REPOST" | "FOLLOW" | "WARNING";
 
 type ActivityItem = {
   id: string;
   type: ActivityType;
   created_at: string;
   read_at: string | null;
+  note: string | null;
   actor: { id: string; username: string; display_name: string; profile_image_url: string | null };
   post: { id: string; content: string; parent_post_id: string | null } | null;
 };
@@ -26,6 +27,7 @@ const COPY: Record<ActivityType, string> = {
   LIKE: "liked your post",
   REPOST: "reposted your post",
   FOLLOW: "followed you",
+  WARNING: "sent you a warning",
 };
 
 const ICON: Record<ActivityType, { name: React.ComponentProps<typeof Ionicons>["name"]; color: string }> = {
@@ -35,6 +37,7 @@ const ICON: Record<ActivityType, { name: React.ComponentProps<typeof Ionicons>["
   LIKE: { name: "heart", color: colors.like },
   REPOST: { name: "repeat", color: colors.accent },
   FOLLOW: { name: "person-add", color: colors.accent },
+  WARNING: { name: "alert-circle", color: colors.warn },
 };
 
 export default function ActivityScreen() {
@@ -91,12 +94,17 @@ export default function ActivityScreen() {
   }, [load, markRead]);
 
   const open = (item: ActivityItem) => {
+    if (item.type === "WARNING") return; // nothing to open; the note is the message
     if (item.post) router.push(`/posts/${item.post.id}`);
     else router.push(`/users/${item.actor.id}`);
   };
 
   const renderItem = ({ item }: { item: ActivityItem }) => {
     const icon = ICON[item.type];
+    // Warnings come from the moderation team, never attributed to a person.
+    const isWarning = item.type === "WARNING";
+    const actorName = isWarning ? "Fwitter moderation" : item.actor.display_name;
+    const snippet = isWarning ? item.note : item.post?.content;
     return (
       <Pressable style={[styles.row, !item.read_at && styles.rowUnread]} onPress={() => open(item)}>
         <View style={styles.iconColumn}>
@@ -104,8 +112,12 @@ export default function ActivityScreen() {
         </View>
         <View style={styles.body}>
           <View style={styles.actorRow}>
-            <Pressable onPress={() => router.push(`/users/${item.actor.id}`)} hitSlop={6}>
-              {item.actor.profile_image_url ? (
+            <Pressable onPress={isWarning ? undefined : () => router.push(`/users/${item.actor.id}`)} hitSlop={6}>
+              {isWarning ? (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="shield-checkmark" size={16} color={colors.warn} />
+                </View>
+              ) : item.actor.profile_image_url ? (
                 <Image source={{ uri: item.actor.profile_image_url }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
@@ -116,11 +128,11 @@ export default function ActivityScreen() {
             <Text style={styles.time}>{getTimeAgo(new Date(item.created_at))}</Text>
           </View>
           <Text style={styles.text}>
-            <Text style={styles.actorName}>{item.actor.display_name}</Text> {COPY[item.type]}
+            <Text style={styles.actorName}>{actorName}</Text> {COPY[item.type]}
           </Text>
-          {item.post && (
-            <Text style={styles.snippet} numberOfLines={2}>
-              {item.post.content}
+          {!!snippet && (
+            <Text style={styles.snippet} numberOfLines={isWarning ? 6 : 2}>
+              {snippet}
             </Text>
           )}
         </View>

@@ -1,11 +1,20 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ReportReason } from '@prisma/client';
+import { Prisma, ReportReason, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildBannedPattern, containsBannedWord } from './banned-words';
 
 // Reports from this many distinct accounts hide a post until a moderator looks at it.
 export const AUTO_HIDE_REPORTS = 3;
 const BANNED_WORDS_TTL_MS = 60_000;
+const STATUS_TTL_MS = 30_000;
+
+export type AccountStatus = {
+  at: number;
+  id: string | null;
+  role: Role;
+  suspended_until: Date | null;
+  banned_at: Date | null;
+};
 
 export type ReportInput = {
   postId?: string;
@@ -18,8 +27,56 @@ export type ReportInput = {
 export class ModerationService {
   private bannedPattern: RegExp | null = null;
   private bannedLoadedAt = 0;
+  private readonly statusCache = new Map<string, AccountStatus>();
 
   constructor(private readonly prisma: PrismaService) {}
+
+  // ---- Account status (role, suspension, ban) -----------------------------
+
+  // Looked up on every authenticated request, so it's cached for a short while.
+  // A moderator action calls invalidateStatus so the change applies within seconds.
+  async accountStatus(sub: string): Promise<AccountStatus> {
+    const hit = this.statusCache.get(sub);
+    if (hit && Date.now() - hit.at < STATUS_TTL_MS) return hit;
+
+    const u = await this.prisma.users.findUnique({
+      where: { cognito_sub: sub },
+      select: { id: true, role: true, suspended_until: true, banned_at: true },
+    });
+    const entry: AccountStatus = {
+      at: Date.now(),
+      id: u?.id ?? null,
+      role: u?.role ?? Role.USER,
+      suspended_until: u?.suspended_until ?? null,
+      banned_at: u?.banned_at ?? null,
+    };
+    this.statusCache.set(sub, entry);
+    return entry;
+  }
+
+  invalidateStatus(userId: string) {
+    for (const [sub, entry] of this.statusCache) {
+      if (entry.id === userId) this.statusCache.delete(sub);
+    }
+  }
+
+  // Drops the whole cache; only needed when the user lookup itself changes (tests, deletes).
+  clearStatusCache() {
+    this.statusCache.clear();
+  }
+
+  async assertActive(sub: string) {
+    const status = await this.accountStatus(sub);
+    if (status.banned_at) throw new ForbiddenException({ message: 'account_banned' });
+    if (status.suspended_until && status.suspended_until.getTime() > Date.now()) {
+      throw new ForbiddenException({ message: 'account_suspended', until: status.suspended_until.toISOString() });
+    }
+  }
+
+  // Called by the admin service after it edits the banned-words table.
+  invalidateBannedWords() {
+    this.bannedLoadedAt = 0;
+  }
 
   // ---- Blocks -------------------------------------------------------------
 

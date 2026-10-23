@@ -9,6 +9,8 @@ export type NotifyArgs = {
   actorId: string;
   type: NotificationType;
   postId?: string | null;
+  // WARNING only: what the moderator wrote.
+  note?: string | null;
 };
 
 const VERB: Record<NotificationType, string> = {
@@ -18,6 +20,7 @@ const VERB: Record<NotificationType, string> = {
   LIKE: 'liked your post',
   REPOST: 'reposted your post',
   FOLLOW: 'followed you',
+  WARNING: 'sent you a warning',
 };
 
 @Injectable()
@@ -36,7 +39,8 @@ export class NotificationsService {
   async notify(args: NotifyArgs) {
     if (args.recipientId === args.actorId) return;
     try {
-      if (await this.moderation.isBlockedEitherWay(args.recipientId, args.actorId)) return;
+      // Moderation warnings always get through; blocks only apply between members.
+      if (args.type !== 'WARNING' && (await this.moderation.isBlockedEitherWay(args.recipientId, args.actorId))) return;
       const { count } = await this.prisma.notifications.createMany({
         data: [
           {
@@ -44,11 +48,22 @@ export class NotificationsService {
             actor_id: args.actorId,
             type: args.type,
             post_id: args.postId ?? null,
+            note: args.note ?? null,
           },
         ],
         skipDuplicates: true,
       });
       if (count === 0) return;
+
+      if (args.type === 'WARNING') {
+        // The moderator stays anonymous to the member.
+        await this.push.sendToUser(args.recipientId, {
+          title: 'Fwitter moderation',
+          body: args.note ? `Warning: ${args.note}` : 'You have received a warning from the moderators.',
+          data: { url: '/(tabs)/activity', type: args.type },
+        });
+        return;
+      }
 
       const actor = await this.prisma.users.findUnique({
         where: { id: args.actorId },

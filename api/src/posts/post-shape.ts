@@ -25,9 +25,41 @@ function basePostSelect(viewerId: string) {
     bookmarks: { where: { user_id: viewerId }, select: { user_id: true } },
     // The viewer's own plain repost of this post, if any.
     reposts: { where: { author_id: viewerId }, select: { id: true } },
+    polls: {
+      select: {
+        ends_at: true,
+        poll_options: {
+          orderBy: { position: 'asc' },
+          select: { id: true, text: true, _count: { select: { poll_votes: true } } },
+        },
+        // The viewer's vote, if any.
+        poll_votes: { where: { user_id: viewerId }, select: { option_id: true } },
+        _count: { select: { poll_votes: true } },
+      },
+    },
     // other_posts is the self-relation back-reference: this post's replies.
     _count: { select: { other_posts: true, post_likes: true, reposts: true } },
   } satisfies Prisma.postsSelect;
+}
+
+type RawPoll = NonNullable<Prisma.postsGetPayload<{ select: ReturnType<typeof basePostSelect> }>['polls']>;
+
+// Results stay hidden until the viewer has voted, the poll has ended, or the
+// viewer is the author (so people vote on the question, not the crowd).
+function toPoll(poll: RawPoll, isAuthor: boolean) {
+  const my_option_id = poll.poll_votes[0]?.option_id ?? null;
+  const ended = poll.ends_at.getTime() <= Date.now();
+  const revealed = isAuthor || my_option_id !== null || ended;
+  return {
+    ends_at: poll.ends_at,
+    my_option_id,
+    total_votes: revealed ? poll._count.poll_votes : null,
+    options: poll.poll_options.map((o) => ({
+      id: o.id,
+      text: o.text,
+      votes: revealed ? o._count.poll_votes : null,
+    })),
+  };
 }
 
 // A post plus the post it quotes. One level only: a quote of a quote shows the
@@ -53,13 +85,14 @@ type RawQuoting = Prisma.postsGetPayload<{ select: ReturnType<typeof quotingPost
 type RawFeed = Prisma.postsGetPayload<{ select: ReturnType<typeof feedPostSelect> }>;
 
 function toBasePost(row: RawBase, viewerId: string) {
-  const { _count, post_likes, bookmarks, reposts, post_mentions, post_hashtags, ...rest } = row;
+  const { _count, post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, ...rest } = row;
   const isAuthor = row.author_id === viewerId;
   return {
     ...rest,
     // Resolved entities, so the client only links @names and #tags that exist.
     mentions: post_mentions.map((m) => m.users),
     hashtags: post_hashtags.map((h) => h.hashtags.tag),
+    poll: polls ? toPoll(polls, isAuthor) : null,
     reply_count: _count.other_posts,
     like_count: isAuthor ? _count.post_likes : null,
     liked_by_me: post_likes.length > 0,

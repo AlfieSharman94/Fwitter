@@ -6,7 +6,7 @@ import { apiFetch } from "../api/client";
 import type { FeedPost, FeedPostBase } from "./feedTypes";
 
 export type PostPatch = Partial<
-  Pick<FeedPostBase, "liked_by_me" | "like_count" | "bookmarked_by_me" | "reposted_by_me" | "repost_count">
+  Pick<FeedPostBase, "liked_by_me" | "like_count" | "bookmarked_by_me" | "reposted_by_me" | "repost_count" | "poll">
 >;
 export type PatchPost = (postId: string, patch: PostPatch) => void;
 
@@ -55,6 +55,30 @@ export async function toggleBookmark(post: FeedPostBase, patch: PatchPost) {
     patch(post.id, { bookmarked_by_me: res.bookmarked });
   } catch {
     patch(post.id, { bookmarked_by_me: wasBookmarked });
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+// One vote, cannot be changed. The choice shows immediately; counts arrive with
+// the server's reply (they are hidden until you have voted).
+export async function votePoll(post: FeedPostBase, optionId: string, patch: PatchPost) {
+  if (!post.poll) return;
+  const key = `${post.id}:vote`;
+  if (inFlight.has(key)) return;
+  inFlight.add(key);
+
+  const previous = post.poll;
+  patch(post.id, { poll: { ...previous, my_option_id: optionId } });
+
+  try {
+    const res = await apiFetch(`/posts/${post.id}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ optionId }),
+    });
+    patch(post.id, { poll: res.poll });
+  } catch {
+    patch(post.id, { poll: previous });
   } finally {
     inFlight.delete(key);
   }

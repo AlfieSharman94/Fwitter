@@ -48,6 +48,8 @@ model posts {
   repost_of_id   String?       @db.Uuid
   /// Quote post: own content plus an embedded original. Nulled if the original is deleted (the quote then shows as a plain post).
   quoted_post_id String?       @db.Uuid
+  /// Set when the post was made from a match hub; the post also appears in normal feeds.
+  match_id       String?       @db.Uuid
   /// Engagement counters, maintained in the same transactions as the rows they count. Used by ranking and the post shape.
   like_count     Int           @default(0)
   reply_count    Int           @default(0)
@@ -64,6 +66,7 @@ model posts {
   post_hashtags  post_hashtags[]
   polls          polls?
   notifications  notifications[]
+  matches        matches?      @relation(fields: [match_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   users          users         @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   posts          posts?        @relation("postsToposts", fields: [parent_post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   other_posts    posts[]       @relation("postsToposts")
@@ -78,6 +81,7 @@ model posts {
   @@index([parent_post_id], map: "idx_posts_parent")
   @@index([repost_of_id], map: "idx_posts_repost_of")
   @@index([quoted_post_id], map: "idx_posts_quoted")
+  @@index([match_id, created_at(sort: Desc)], map: "idx_posts_match_created")
 }
 
 model post_likes {
@@ -210,16 +214,62 @@ model bookmarks {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model teams {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String       @db.VarChar(100)
-  short_name String?      @db.VarChar(50)
-  city       String?      @db.VarChar(100)
-  country    String?      @db.VarChar(100)
-  league     String?      @db.VarChar(100)
-  logo_url   String?
-  created_at DateTime     @default(now()) @db.Timestamptz(6)
-  post_teams post_teams[]
-  user_teams user_teams[]
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String       @db.VarChar(100)
+  short_name   String?      @db.VarChar(50)
+  city         String?      @db.VarChar(100)
+  country      String?      @db.VarChar(100)
+  league       String?      @db.VarChar(100)
+  logo_url     String?
+  /// football-data.org team id, set by the fixtures sync when it matches the name.
+  external_id  Int?         @unique
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  post_teams   post_teams[]
+  user_teams   user_teams[]
+  home_matches matches[]    @relation("match_home")
+  away_matches matches[]    @relation("match_away")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  TIMED
+  IN_PLAY
+  PAUSED
+  EXTRA_TIME
+  PENALTY_SHOOTOUT
+  FINISHED
+  SUSPENDED
+  POSTPONED
+  CANCELLED
+  AWARDED
+}
+
+/// Fixtures and scores from football-data.org. Team links are null until the sync maps
+/// the API team onto a seeded team; names and crests are always stored so unmapped
+/// teams still display.
+model matches {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  external_id      Int         @unique
+  competition      String      @db.VarChar(10)
+  competition_name String      @db.VarChar(100)
+  home_team_id     String?     @db.Uuid
+  away_team_id     String?     @db.Uuid
+  home_name        String      @db.VarChar(100)
+  away_name        String      @db.VarChar(100)
+  home_crest       String?
+  away_crest       String?
+  kickoff_at       DateTime    @db.Timestamptz(6)
+  status           MatchStatus @default(SCHEDULED)
+  minute           Int?
+  home_score       Int?
+  away_score       Int?
+  updated_at       DateTime    @default(now()) @db.Timestamptz(6)
+  home_team        teams?      @relation("match_home", fields: [home_team_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  away_team        teams?      @relation("match_away", fields: [away_team_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  posts            posts[]
+
+  @@index([kickoff_at])
+  @@index([status, kickoff_at])
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.

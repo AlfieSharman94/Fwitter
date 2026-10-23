@@ -26,8 +26,9 @@ const MAX_TOPICS = 20;
 
 export default function ComposeScreen() {
   const router = useRouter();
-  // Present when opened via "Quote" on a post: the id of the post to quote.
-  const { quote } = useLocalSearchParams<{ quote?: string }>();
+  // `quote`: opened via "Quote" on a post. `match`: opened from a match hub.
+  const { quote, match: matchParam } = useLocalSearchParams<{ quote?: string; match?: string }>();
+  const [match, setMatch] = useState<{ id: string; home_name: string; away_name: string } | null>(null);
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +57,28 @@ export default function ComposeScreen() {
       }
     })();
   }, []);
+
+  // Match mode: tag the post to the match and start with both clubs selected (or the
+  // Matchday topic when neither club is one of ours), so the tag rule is already met.
+  useEffect(() => {
+    if (!matchParam) return;
+    (async () => {
+      try {
+        const data = await apiFetch(`/matches/${matchParam}`);
+        const m = data.match;
+        setMatch({ id: m.id, home_name: m.home_name, away_name: m.away_name });
+        const clubs = [m.home_team, m.away_team].filter(Boolean) as { id: string; name: string }[];
+        if (clubs.length) {
+          setSelectedTeams(clubs.map((c) => ({ id: c.id, name: c.name, logo_url: null })));
+        } else {
+          const matchday = (await searchTopics("Matchday")).find((t) => t.name.toLowerCase() === "matchday");
+          if (matchday) setSelectedTopics([matchday]);
+        }
+      } catch (e: any) {
+        setError(e?.message ?? "Couldn’t load the match");
+      }
+    })();
+  }, [matchParam]);
 
   // Quote mode: load the post being quoted and start with its tags selected, so the
   // "at least one team or topic" rule is already met and the quote stays on topic.
@@ -153,6 +176,7 @@ export default function ComposeScreen() {
           teamIds: selectedTeams.map((t) => t.id),
           topicIds: selectedTopics.map((t) => t.id),
           ...(quoted ? { quotedPostId: quoted.id } : {}),
+          ...(match ? { matchId: match.id } : {}),
           ...(pollEnabled ? { poll: { options: pollTrimmed, durationHours: pollDuration } } : {}),
         }),
       });
@@ -178,7 +202,7 @@ export default function ComposeScreen() {
           <Pressable onPress={() => router.back()} disabled={busy}>
             <Text style={styles.cancelButton}>Cancel</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>{quoted ? "Quote Post" : "New Post"}</Text>
+          <Text style={styles.headerTitle}>{quoted ? "Quote Post" : match ? "Match Post" : "New Post"}</Text>
           <Pressable
             onPress={handleSubmit}
             disabled={!canSubmit}
@@ -189,6 +213,14 @@ export default function ComposeScreen() {
         </View>
 
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+          {match && (
+            <View style={styles.matchBanner}>
+              <Ionicons name="football" size={16} color={colors.accent} />
+              <Text style={styles.matchBannerText} numberOfLines={1}>
+                Posting to {match.home_name} v {match.away_name}
+              </Text>
+            </View>
+          )}
           <TextInput
             style={styles.input}
             placeholder="What’s the take?"
@@ -398,6 +430,20 @@ const styles = StyleSheet.create({
   },
   counterRow: { paddingHorizontal: 16, paddingBottom: 8, alignItems: "flex-end" },
   quoteWrap: { paddingHorizontal: 16, paddingBottom: 12 },
+  matchBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  matchBannerText: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.textBody },
   pollToggleRow: { paddingHorizontal: 16, paddingBottom: 12 },
   pollToggle: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
   pollToggleText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent2 },

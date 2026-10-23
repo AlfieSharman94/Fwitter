@@ -38,6 +38,10 @@ export class CreatePostDto {
   quotedPostId?: string;
 
   @IsOptional()
+  @IsString()
+  matchId?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
   @IsString({ each: true })

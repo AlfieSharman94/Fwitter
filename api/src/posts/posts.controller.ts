@@ -109,6 +109,11 @@ export class PostsController {
     }
     const quotedPostId = quotedTarget?.id ?? null;
 
+    if (dto.matchId) {
+      const match = await this.prisma.matches.findUnique({ where: { id: dto.matchId }, select: { id: true } });
+      if (!match) throw new BadRequestException('match_not_found');
+    }
+
     const teamIds = Array.from(new Set(dto.teamIds ?? []));
     const topicIds = Array.from(new Set(dto.topicIds ?? []));
 
@@ -156,6 +161,7 @@ export class PostsController {
           content,
           parent_post_id: dto.parentPostId ?? null,
           quoted_post_id: quotedPostId,
+          match_id: dto.matchId ?? null,
         },
         select: { id: true },
       });

@@ -21,6 +21,8 @@ export type FeedPostBase = {
   mentions: { id: string; username: string }[];
   hashtags: string[];
   poll: Poll | null;
+  // Set when the post was made from a match hub.
+  match: { id: string; home_name: string; away_name: string } | null;
   reply_count: number;
   // Counts are null unless the viewer is the author: they are hidden from everyone else.
   like_count: number | null;

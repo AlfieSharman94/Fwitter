@@ -114,9 +114,9 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
     router.push("/bookmarks");
   };
 
-  const handleClubLounge = () => {
-    // No-op for now
+  const handleMatchday = () => {
     onClose();
+    router.push("/matches");
   };
 
   const handleLogOut = async () => {
@@ -189,12 +189,12 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
               <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
             </Pressable>
 
-            <Pressable style={styles.navItem} onPress={handleClubLounge}>
+            <Pressable style={styles.navItem} onPress={handleMatchday}>
               <View style={styles.navItemContent}>
                 <View style={styles.navIcon}>
                   <Ionicons name="football" size={20} color={colors.text} />
                 </View>
-                <Text style={styles.navText}>Club Lounge</Text>
+                <Text style={styles.navText}>Matchday</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
             </Pressable>

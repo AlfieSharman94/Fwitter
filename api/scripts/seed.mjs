@@ -83,13 +83,24 @@ async function upsertTopic(tp) {
   });
 }
 
+// Starter list for the submit-time word filter (matched on word boundaries, case-
+// insensitive). Moderators extend it from the dashboard; this only ever adds.
+const bannedWords = [
+  "fuck", "fucking", "fucked", "shit", "cunt", "bitch", "wanker", "twat", "dickhead", "prick", "bastard",
+];
+
 async function main() {
   for (const t of teams) await upsertTeam(t.name);
   for (const tp of topics) await upsertTopic(tp);
+  await prisma.banned_words.createMany({
+    data: bannedWords.map((word) => ({ word: word.toLowerCase() })),
+    skipDuplicates: true,
+  });
 
   console.log({
     teams: await prisma.teams.count(),
     topics: await prisma.topics.count(),
+    bannedWords: await prisma.banned_words.count(),
   });
 }
 

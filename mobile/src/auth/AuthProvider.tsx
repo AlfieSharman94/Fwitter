@@ -4,6 +4,7 @@ import { AppState, AppStateStatus } from "react-native";
 import { bootstrapAuth, doSignIn, doSignOut, refreshAuth } from "./auth";
 import { apiFetch } from "../api/client";
 import { unregisterPushToken } from "../notifications/push";
+import { setMe } from "./me";
 
 type AuthState = {
   isBootstrapping: boolean;
@@ -135,7 +136,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut: async () => {
         // Needs the session, so it runs before the tokens are cleared.
         await unregisterPushToken();
-        await doSignOut();
+        try {
+          await doSignOut();
+        } catch {
+          // Already signed out (e.g. the Cognito user was just deleted): local state still resets.
+        }
+        setMe(null);
         setSignedIn(false);
         setIsOnboarded(null);
       },

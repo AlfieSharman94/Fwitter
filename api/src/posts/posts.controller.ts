@@ -7,6 +7,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from './post-shape';
 import { extractHashtags, extractMentions } from './content-entities';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ModerationService } from '../moderation/moderation.service';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +16,7 @@ export class PostsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly moderation: ModerationService,
   ) {}
 
   private parseLimit(limit?: string) {
@@ -30,22 +33,26 @@ export class PostsController {
     return dbUser;
   }
 
-  // Likes, bookmarks and reposts always target the original post: if `id` is a
-  // plain repost row, resolve through to the post it reposts.
-  private async requireOriginal(id: string) {
+  // Likes, bookmarks, reposts and votes always target the original post: if `id` is a
+  // plain repost row, resolve through to the post it reposts. Hidden posts and posts
+  // across a block can't be interacted with.
+  private async requireOriginal(id: string, viewerId: string) {
     const post = await this.prisma.posts.findUnique({
       where: { id },
-      select: { id: true, author_id: true, repost_of_id: true },
+      select: { id: true, author_id: true, repost_of_id: true, hidden_at: true },
     });
     if (!post) throw new NotFoundException('post_not_found');
-    if (!post.repost_of_id) return { id: post.id, author_id: post.author_id };
 
-    const original = await this.prisma.posts.findUnique({
-      where: { id: post.repost_of_id },
-      select: { id: true, author_id: true },
-    });
+    const original = post.repost_of_id
+      ? await this.prisma.posts.findUnique({
+          where: { id: post.repost_of_id },
+          select: { id: true, author_id: true, hidden_at: true },
+        })
+      : post;
     if (!original) throw new NotFoundException('post_not_found');
-    return original;
+
+    await this.moderation.assertVisible(viewerId, original);
+    return { id: original.id, author_id: original.author_id };
   }
 
   // Same rule as post-shape.ts: counts are only revealed to the author.
@@ -76,19 +83,23 @@ export class PostsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async create(@CurrentUser() user: { sub: string }, @Body() dto: CreatePostDto) {
     const dbUser = await this.requireViewer(user.sub);
 
     const content = dto.content.trim();
     if (!content) throw new BadRequestException('content_required');
+    await this.moderation.assertContentAllowed(content);
 
-    let parent: { id: string; author_id: string } | null = null;
+    let parent: { id: string; author_id: string; hidden_at: Date | null } | null = null;
     if (dto.parentPostId) {
       parent = await this.prisma.posts.findUnique({
         where: { id: dto.parentPostId },
-        select: { id: true, author_id: true },
+        select: { id: true, author_id: true, hidden_at: true },
       });
       if (!parent) throw new BadRequestException('parent_post_not_found');
+      await this.moderation.assertVisible(dbUser.id, parent);
+      await this.moderation.assertCanInteract(dbUser.id, parent.author_id);
     }
 
     let quotedTarget: { id: string; author_id: string } | null = null;
@@ -106,6 +117,7 @@ export class PostsController {
           })
         : { id: quoted.id, author_id: quoted.author_id };
       if (!quotedTarget) throw new BadRequestException('quoted_post_not_found');
+      await this.moderation.assertCanInteract(dbUser.id, quotedTarget.author_id);
     }
     const quotedPostId = quotedTarget?.id ?? null;
 
@@ -248,6 +260,7 @@ export class PostsController {
     });
 
     if (!post) throw new NotFoundException('post_not_found');
+    await this.moderation.assertVisible(viewer.id, post);
 
     const { posts: parent, ...rest } = post;
     return {
@@ -271,6 +284,7 @@ export class PostsController {
       where: {
         parent_post_id: id,
         ...(createdBefore ? { created_at: { lt: createdBefore } } : {}),
+        ...(await this.moderation.visibility(viewer.id)),
       },
       orderBy: { created_at: 'desc' },
       take,
@@ -284,7 +298,7 @@ export class PostsController {
   @Post(':id/like')
   async like(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
     // The counter only moves when a row was actually written (double-tap safe).
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.post_likes.createMany({
@@ -300,7 +314,7 @@ export class PostsController {
   @Delete(':id/like')
   async unlike(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.post_likes.deleteMany({ where: { post_id: post.id, user_id: viewer.id } });
       if (count > 0) await tx.posts.update({ where: { id: post.id }, data: { like_count: { decrement: 1 } } });
@@ -312,7 +326,7 @@ export class PostsController {
   @Post(':id/bookmark')
   async bookmark(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
     await this.prisma.bookmarks.createMany({
       data: [{ user_id: viewer.id, post_id: post.id }],
       skipDuplicates: true,
@@ -323,7 +337,7 @@ export class PostsController {
   @Delete(':id/bookmark')
   async unbookmark(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
     await this.prisma.bookmarks.deleteMany({ where: { user_id: viewer.id, post_id: post.id } });
     return { bookmarked: false };
   }
@@ -331,7 +345,7 @@ export class PostsController {
   @Post(':id/vote')
   async vote(@CurrentUser() user: { sub: string }, @Param('id') id: string, @Body() dto: VoteDto) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
 
     const poll = await this.prisma.polls.findUnique({
       where: { post_id: post.id },
@@ -361,7 +375,7 @@ export class PostsController {
   @Post(':id/repost')
   async repost(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
     // A plain repost is its own posts row with no content. (author_id, repost_of_id)
     // is unique, so reposting twice is a no-op.
     await this.prisma.$transaction(async (tx) => {
@@ -378,7 +392,7 @@ export class PostsController {
   @Delete(':id/repost')
   async unrepost(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
-    const post = await this.requireOriginal(id);
+    const post = await this.requireOriginal(id, viewer.id);
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.posts.deleteMany({ where: { author_id: viewer.id, repost_of_id: post.id } });
       if (count > 0) await tx.posts.update({ where: { id: post.id }, data: { repost_count: { decrement: 1 } } });

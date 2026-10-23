@@ -50,6 +50,12 @@ model posts {
   quoted_post_id String?       @db.Uuid
   /// Set when the post was made from a match hub; the post also appears in normal feeds.
   match_id       String?       @db.Uuid
+  /// Hidden from everyone but the author (and moderators) once set: by reports reaching the
+  /// auto-hide threshold ('reports') or by a moderator ('moderator'). Cleared on restore.
+  hidden_at      DateTime?     @db.Timestamptz(6)
+  hidden_reason  String?       @db.VarChar(20)
+  /// Distinct reporters so far; drives the auto-hide threshold.
+  report_count   Int           @default(0)
   /// Engagement counters, maintained in the same transactions as the rows they count. Used by ranking and the post shape.
   like_count     Int           @default(0)
   reply_count    Int           @default(0)
@@ -66,6 +72,7 @@ model posts {
   post_hashtags  post_hashtags[]
   polls          polls?
   notifications  notifications[]
+  reports        reports[]
   matches        matches?      @relation(fields: [match_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   users          users         @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   posts          posts?        @relation("postsToposts", fields: [parent_post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -82,6 +89,65 @@ model posts {
   @@index([repost_of_id], map: "idx_posts_repost_of")
   @@index([quoted_post_id], map: "idx_posts_quoted")
   @@index([match_id, created_at(sort: Desc)], map: "idx_posts_match_created")
+  @@index([hidden_at], map: "idx_posts_hidden")
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  SEXUAL
+  VIOLENCE
+  SELF_HARM
+  UNDERAGE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+/// A report targets exactly one of post_id / user_id. One report per reporter per target.
+model reports {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id String       @db.Uuid
+  post_id     String?      @db.Uuid
+  user_id     String?      @db.Uuid
+  reason      ReportReason
+  details     String?      @db.VarChar(500)
+  status      ReportStatus @default(OPEN)
+  created_at  DateTime     @default(now()) @db.Timestamptz(6)
+  resolved_at DateTime?    @db.Timestamptz(6)
+  resolved_by String?      @db.Uuid
+  reporter    users        @relation("reports_reporter", fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  posts       posts?       @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  reported    users?       @relation("reports_reported", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([reporter_id, post_id], map: "idx_reports_once_per_post")
+  @@unique([reporter_id, user_id], map: "idx_reports_once_per_user")
+  @@index([status, created_at(sort: Desc)])
+  @@index([post_id])
+  @@index([user_id])
+}
+
+/// Two-way: neither side sees the other's posts, and follows between them are removed.
+model blocks {
+  blocker_id String   @db.Uuid
+  blocked_id String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  blocker    users    @relation("blocks_blocker", fields: [blocker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  blocked    users    @relation("blocks_blocked", fields: [blocked_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([blocker_id, blocked_id])
+  @@index([blocked_id])
+}
+
+/// Words that block a post, bio or name at submit. Stored lowercase; matched on word boundaries.
+model banned_words {
+  word       String   @id @db.VarChar(50)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model post_likes {
@@ -334,6 +400,10 @@ model users {
   notifications_received              notifications[] @relation("notifications_recipient")
   notifications_sent                  notifications[] @relation("notifications_actor")
   push_tokens                         push_tokens[]
+  reports_made                        reports[]       @relation("reports_reporter")
+  reports_received                    reports[]       @relation("reports_reported")
+  blocks_made                         blocks[]        @relation("blocks_blocker")
+  blocks_received                     blocks[]        @relation("blocks_blocked")
   user_teams                          user_teams[]
   user_topics                         user_topics[]
 }

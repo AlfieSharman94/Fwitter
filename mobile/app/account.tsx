@@ -16,6 +16,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api/client";
 import { doUpdatePassword } from "../src/auth/auth";
+import { deleteCognitoAccount } from "../src/auth/deleteAccount";
+import { useAuth } from "../src/auth/AuthProvider";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 type MeProfile = {
@@ -30,7 +32,9 @@ type MeProfile = {
 
 export default function AccountScreen() {
   const router = useRouter();
+  const { signOut } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [profile, setProfile] = useState<MeProfile | null>(null);
 
   const [username, setUsername] = useState("");
@@ -80,11 +84,48 @@ export default function AccountScreen() {
       setProfile(data.user as MeProfile);
       setProfileMsg({ ok: true, text: "Saved." });
     } catch (e: any) {
-      const text = e?.message === "username_taken" ? "That username is taken." : e?.message ?? "Failed to save.";
+      const text =
+        e?.message === "username_taken"
+          ? "That username is taken."
+          : e?.message === "content_not_allowed"
+            ? "That username or bio contains language we don’t allow."
+            : e?.message ?? "Failed to save.";
       setProfileMsg({ ok: false, text });
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  // Profile first (needs the session), then the Cognito user, then local state.
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete your account?",
+      "Your profile, posts, likes, follows and saved posts are deleted straight away. This can’t be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete account",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await apiFetch("/users/me", { method: "DELETE" });
+              try {
+                await deleteCognitoAccount();
+              } catch {
+                // Profile is gone; a stale Cognito user just lands on onboarding next time.
+              }
+              await signOut();
+              router.replace("/(auth)/welcome");
+            } catch (e: any) {
+              Alert.alert("Error", e?.message ?? "Failed to delete account.");
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleChangePassword = async () => {
@@ -225,6 +266,23 @@ export default function AccountScreen() {
                 <Text style={styles.buttonOutlineText}>Update password</Text>
               )}
             </Pressable>
+
+            {/* Danger zone */}
+            <Text style={styles.sectionLabel}>Delete account</Text>
+            <Text style={styles.dangerHelp}>
+              Permanently removes your account and everything you’ve posted. There’s no grace period.
+            </Text>
+            <Pressable
+              style={[styles.buttonDanger, deleting && styles.buttonDisabled]}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator color={colors.danger} />
+              ) : (
+                <Text style={styles.buttonDangerText}>Delete my account</Text>
+              )}
+            </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
       )}
@@ -349,4 +407,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   buttonOutlineText: { fontFamily: fonts.heading, fontSize: 16, color: colors.text, textTransform: "uppercase", letterSpacing: 0.3 },
+  dangerHelp: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+  buttonDanger: {
+    height: 52,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  buttonDangerText: { fontFamily: fonts.heading, fontSize: 16, color: colors.danger, textTransform: "uppercase", letterSpacing: 0.3 },
 });

@@ -8,7 +8,7 @@ import { PostCard } from "../../src/components/PostCard";
 import { patchPostList, type PatchPost } from "../../src/feed/engagement";
 import { Ionicons } from "@expo/vector-icons";
 import type { FeedPost } from "../../src/feed/feedTypes";
-import { onNewPost } from "../../src/feed/optimisticFeed";
+import { onNewPost, useFeedEvents } from "../../src/feed/optimisticFeed";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 type FeedType = "12th-man" | "squad";
@@ -79,6 +79,8 @@ export default function HomeScreen() {
     },
     [feedType, sort]
   );
+
+  useFeedEvents(setPosts);
 
   // Instantly show the current user's own new post (published by the composer)
   // without waiting for a refetch. Dedup by id so a later refetch can't double it.

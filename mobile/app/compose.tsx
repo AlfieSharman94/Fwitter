@@ -186,7 +186,13 @@ export default function ComposeScreen() {
 
       router.back();
     } catch (e: any) {
-      setError(e?.message ?? "Failed to create post");
+      setError(
+        e?.message === "content_not_allowed"
+          ? "That post contains language we don’t allow on Fwitter."
+          : e?.message === "blocked"
+            ? "You can’t interact with this account."
+            : e?.message ?? "Failed to create post"
+      );
     } finally {
       setBusy(false);
     }

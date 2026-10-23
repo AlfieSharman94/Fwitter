@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from './push.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 export type NotifyArgs = {
   recipientId: string;
@@ -26,14 +27,16 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushService,
+    private readonly moderation: ModerationService,
   ) {}
 
   // Called from write paths without awaiting the push: a notification must never
-  // fail or slow down the action that caused it. Self-actions are ignored and the
-  // dedupe index makes repeats a no-op (no second push either).
+  // fail or slow down the action that caused it. Self-actions and anything across
+  // a block are ignored; the dedupe index makes repeats a no-op (no second push either).
   async notify(args: NotifyArgs) {
     if (args.recipientId === args.actorId) return;
     try {
+      if (await this.moderation.isBlockedEitherWay(args.recipientId, args.actorId)) return;
       const { count } = await this.prisma.notifications.createMany({
         data: [
           {

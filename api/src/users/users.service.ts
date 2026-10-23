@@ -1,12 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly moderation: ModerationService,
   ) {}
 
   /**
@@ -44,6 +46,7 @@ export class UsersService {
     if (!targetUser) {
       throw new NotFoundException('user_not_found');
     }
+    await this.moderation.assertCanInteract(viewerId, targetId);
 
     // Idempotent: create if not exists, ignore if already exists
     try {
@@ -119,6 +122,8 @@ export class UsersService {
     postsCount: number;
     isFollowing: boolean;
     isSelf: boolean;
+    isBlocked: boolean;
+    hasBlockedMe: boolean;
   }> {
     const targetUser = await this.prisma.users.findUnique({
       where: { id: targetId },
@@ -135,10 +140,10 @@ export class UsersService {
     }
 
     // Get counts in parallel
-    const [followersCount, followingCount, postsCount, isFollowing] = await Promise.all([
+    const [followersCount, followingCount, postsCount, isFollowing, blockRows] = await Promise.all([
       this.prisma.follows.count({ where: { following_id: targetId } }),
       this.prisma.follows.count({ where: { follower_id: targetId } }),
-      this.prisma.posts.count({ where: { author_id: targetId, parent_post_id: null } }),
+      this.prisma.posts.count({ where: { author_id: targetId, parent_post_id: null, hidden_at: null } }),
       this.prisma.follows
         .findUnique({
           where: {
@@ -149,9 +154,20 @@ export class UsersService {
           },
         })
         .then((f) => !!f),
+      this.prisma.blocks.findMany({
+        where: {
+          OR: [
+            { blocker_id: viewerId, blocked_id: targetId },
+            { blocker_id: targetId, blocked_id: viewerId },
+          ],
+        },
+        select: { blocker_id: true },
+      }),
     ]);
 
     const isSelf = viewerId === targetId;
+    const isBlocked = blockRows.some((b) => b.blocker_id === viewerId);
+    const hasBlockedMe = blockRows.some((b) => b.blocker_id === targetId);
 
     return {
       id: targetUser.id,
@@ -164,6 +180,8 @@ export class UsersService {
       postsCount,
       isFollowing,
       isSelf,
+      isBlocked,
+      hasBlockedMe,
     };
   }
 

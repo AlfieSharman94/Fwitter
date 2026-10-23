@@ -7,6 +7,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { colors, fonts } from '../../src/theme/theme';
 import { refreshUnread, useUnreadCount } from '../../src/notifications/unread';
 import { registerPushToken } from '../../src/notifications/push';
+import { loadMe } from '../../src/auth/me';
 
 export default function TabLayout() {
   const unread = useUnreadCount();
@@ -14,6 +15,7 @@ export default function TabLayout() {
   // The tabs only mount once signed in and onboarded, so this is where the badge
   // gets synced and this device is registered for push.
   useEffect(() => {
+    loadMe();
     refreshUnread();
     registerPushToken();
     const interval = setInterval(refreshUnread, 60_000);

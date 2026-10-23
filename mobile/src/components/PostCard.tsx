@@ -1,10 +1,15 @@
+import { useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { apiFetch } from "../api/client";
+import { useMe } from "../auth/me";
 import type { FeedPost, FeedPostBase, FeedPostQuoting } from "../feed/feedTypes";
 import { toggleBookmark, toggleLike, toggleRepost, type PatchPost } from "../feed/engagement";
+import { publishAuthorBlocked, publishPostRemoved } from "../feed/optimisticFeed";
 import { PostText } from "./PostText";
 import { PollView } from "./PollView";
+import { ReportSheet, type ReportTarget } from "./ReportSheet";
 import { colors, fonts, radii } from "../theme/theme";
 
 type Props = {
@@ -42,8 +47,72 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
     ]);
   };
 
+  // The "…" menu: delete your own post, or report / block for someone else's.
+  const me = useMe();
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const isMine = !!me && shown.author_id === me.id;
+
+  const deletePost = () => {
+    Alert.alert("Delete post", "This can’t be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await apiFetch(`/posts/${shown.id}`, { method: "DELETE" });
+            publishPostRemoved(shown.id);
+          } catch (e: any) {
+            Alert.alert("Error", e?.message ?? "Failed to delete post");
+          }
+        },
+      },
+    ]);
+  };
+
+  const blockAuthor = () => {
+    Alert.alert(
+      `Block @${shown.users.username}?`,
+      "You won’t see each other’s posts, and any follows between you are removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await apiFetch(`/users/${shown.author_id}/block`, { method: "POST" });
+              publishAuthorBlocked(shown.author_id);
+            } catch (e: any) {
+              Alert.alert("Error", e?.message ?? "Failed to block");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const onMenuPress = () => {
+    if (isMine) {
+      deletePost();
+      return;
+    }
+    Alert.alert(`@${shown.users.username}`, undefined, [
+      { text: "Report post", onPress: () => setReportTarget({ postId: shown.id, label: "post" }) },
+      { text: `Block @${shown.users.username}`, style: "destructive", onPress: blockAuthor },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   return (
     <Pressable style={styles.postCard} onPress={pressable ? openPost : undefined}>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
+      {shown.hidden_at && (
+        <View style={styles.hiddenBanner}>
+          <Ionicons name="eye-off-outline" size={14} color={colors.warn} />
+          <Text style={styles.hiddenBannerText}>Hidden while we review reports. Only you can see this.</Text>
+        </View>
+      )}
       {repostedBy && (
         <Pressable style={styles.repostHeader} onPress={() => router.push(`/users/${post.author_id}`)} hitSlop={6}>
           <Ionicons name="repeat" size={14} color={colors.textDim} />
@@ -77,7 +146,9 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
                 <Ionicons name="trash-outline" size={18} color={colors.textDim} />
               </Pressable>
             ) : (
-              <Ionicons name="ellipsis-horizontal" size={18} color={colors.textDim} />
+              <Pressable onPress={onMenuPress} hitSlop={10}>
+                <Ionicons name="ellipsis-horizontal" size={18} color={colors.textDim} />
+              </Pressable>
             )}
           </View>
 
@@ -200,6 +271,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: colors.rowDivider,
+  },
+  hiddenBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.md,
+    backgroundColor: "rgba(255, 176, 32, 0.12)",
+  },
+  hiddenBannerText: {
+    flex: 1,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.warn,
   },
   repostHeader: {
     flexDirection: "row",

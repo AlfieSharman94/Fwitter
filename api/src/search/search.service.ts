@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 @Injectable()
 export class SearchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly moderation: ModerationService,
+  ) {}
 
   /**
    * Search users by username or display name
@@ -28,13 +32,15 @@ export class SearchService {
 
     const limitNum = Math.min(Math.max(limit, 1), 50);
 
-    // Search username and display_name (case-insensitive)
+    // Search username and display_name (case-insensitive); either side of a block is left out.
+    const blocked = await this.moderation.blockedIds(viewerId);
     const users = await this.prisma.users.findMany({
       where: {
         OR: [
           { username: { contains: query, mode: 'insensitive' } },
           { display_name: { contains: query, mode: 'insensitive' } },
         ],
+        ...(blocked.length ? { id: { notIn: blocked } } : {}),
       },
       take: limitNum,
       select: {

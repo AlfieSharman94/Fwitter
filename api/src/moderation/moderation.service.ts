@@ -196,22 +196,18 @@ export class ModerationService {
 
   // Prisma `where` fragment every post query spreads in: no posts from either side of a
   // block, no hidden posts unless they're the viewer's own, and for a STANDARD viewer no
-  // posts by a private JUNIOR, including the originals inside quote and repost embeds.
+  // posts by a private JUNIOR. The originals inside quote and repost embeds must pass the
+  // same rules (a repost embeds a quoting post, as in feedPostSelect), so a quote or repost
+  // whose original the viewer cannot see is dropped with it.
   visibilityWhere(viewerId: string, blockedIds: string[], viewerTier: AgeTier): Prisma.postsWhereInput {
     const author = visibleUsersWhere(viewerTier);
-    return {
-      AND: [
-        ...(blockedIds.length ? [{ author_id: { notIn: blockedIds } }] : []),
-        { OR: [{ hidden_at: null }, { author_id: viewerId }] },
-        ...(author
-          ? [
-              { users: author },
-              { OR: [{ quoted_post_id: null }, { quoted_post: { users: author } }] },
-              { OR: [{ repost_of_id: null }, { repost_of: { users: author } }] },
-            ]
-          : []),
-      ],
-    };
+    const post: Prisma.postsWhereInput[] = [
+      ...(blockedIds.length ? [{ author_id: { notIn: blockedIds } }] : []),
+      { OR: [{ hidden_at: null }, { author_id: viewerId }] },
+      ...(author ? [{ users: author }] : []),
+    ];
+    const quoting = [...post, { OR: [{ quoted_post_id: null }, { quoted_post: { AND: post } }] }];
+    return { AND: [...quoting, { OR: [{ repost_of_id: null }, { repost_of: { AND: quoting } }] }] };
   }
 
   async visibility(viewerId: string): Promise<Prisma.postsWhereInput> {

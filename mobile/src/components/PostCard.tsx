@@ -209,7 +209,7 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
             </Pressable>
             <Pressable style={styles.action} onPress={() => toggleLike(shown, onPatch)} hitSlop={8}>
               <Ionicons
-                name={shown.liked_by_me ? "heart" : "heart-outline"}
+                name={shown.liked_by_me ? "football" : "football-outline"}
                 size={18}
                 color={shown.liked_by_me ? colors.like : colors.textDim}
               />

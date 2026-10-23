@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api/client";
-import { searchTeams, searchTopics, Team, Topic } from "../src/api/catalog";
+import { searchTeams, searchTopics, suggestedTeams, Team, Topic } from "../src/api/catalog";
 import { publishNewPost } from "../src/feed/optimisticFeed";
 import type { FeedPostBase } from "../src/feed/feedTypes";
 import { QuotedPost } from "../src/components/PostCard";
@@ -48,12 +48,14 @@ export default function ComposeScreen() {
   const [selectedTeams, setSelectedTeams] = useState<Team[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
 
-  // Load the full catalog for the pickers.
+  // Load the pickers: the viewer's own clubs and the rest of their leagues first, so a
+  // Premier League fan sees Premier League clubs rather than the start of the alphabet.
   useEffect(() => {
     (async () => {
       try {
-        const [teams, topics] = await Promise.all([searchTeams(""), searchTopics("")]);
-        setTeamResults(teams);
+        const [suggested, topics] = await Promise.all([suggestedTeams(), searchTopics("")]);
+        // No clubs on the profile yet: fall back to the alphabetical catalogue.
+        setTeamResults(suggested.length ? suggested : await searchTeams(""));
         setTopicResults(topics);
       } catch {
         // Non-fatal: pickers just start empty; the search boxes still work.

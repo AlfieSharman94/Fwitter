@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import { PostCard } from "../../src/components/PostCard";
 import type { FeedPost } from "../../src/feed/feedTypes";
-import type { PatchPost } from "../../src/feed/engagement";
+import { patchPostList, type PatchPost } from "../../src/feed/engagement";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 const MAX_LENGTH = 500;
@@ -97,8 +97,8 @@ export default function PostDetailScreen() {
 
   // The post and its replies live in separate state; a patch may target either.
   const patchPost: PatchPost = (postId, patch) => {
-    setPost((prev) => (prev && prev.id === postId ? { ...prev, ...patch } : prev));
-    setReplies((prev) => prev.map((r) => (r.id === postId ? { ...r, ...patch } : r)));
+    setPost((prev) => (prev ? patchPostList([prev], postId, patch)[0] : prev));
+    setReplies((prev) => patchPostList(prev, postId, patch));
   };
 
   const canSend = reply.trim().length > 0 && reply.length <= MAX_LENGTH && !sending;

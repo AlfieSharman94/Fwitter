@@ -11,26 +11,27 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api/client";
 import { searchTeams, searchTopics, Team, Topic } from "../src/api/catalog";
 import { publishNewPost } from "../src/feed/optimisticFeed";
-import type { FeedPost } from "../src/feed/feedTypes";
+import type { FeedPostBase } from "../src/feed/feedTypes";
+import { QuotedPost } from "../src/components/PostCard";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 const MAX_LENGTH = 500;
 const MAX_TEAMS = 10;
 const MAX_TOPICS = 20;
 
-type SelfProfile = { id: string; username: string; display_name: string };
-
 export default function ComposeScreen() {
   const router = useRouter();
+  // Present when opened via "Quote" on a post: the id of the post to quote.
+  const { quote } = useLocalSearchParams<{ quote?: string }>();
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [me, setMe] = useState<SelfProfile | null>(null);
+  const [quoted, setQuoted] = useState<FeedPostBase | null>(null);
 
   const [teamQuery, setTeamQuery] = useState("");
   const [topicQuery, setTopicQuery] = useState("");
@@ -39,29 +40,37 @@ export default function ComposeScreen() {
   const [selectedTeams, setSelectedTeams] = useState<Team[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
 
-  // Load full catalog + the current user's profile (needed to build the optimistic post).
+  // Load the full catalog for the pickers.
   useEffect(() => {
     (async () => {
       try {
-        const [teams, topics, profile] = await Promise.all([
-          searchTeams(""),
-          searchTopics(""),
-          apiFetch("/users/me/profile"),
-        ]);
+        const [teams, topics] = await Promise.all([searchTeams(""), searchTopics("")]);
         setTeamResults(teams);
         setTopicResults(topics);
-        if (profile?.user) {
-          setMe({
-            id: profile.user.id,
-            username: profile.user.username,
-            display_name: profile.user.display_name,
-          });
-        }
       } catch {
         // Non-fatal: pickers just start empty; the search boxes still work.
       }
     })();
   }, []);
+
+  // Quote mode: load the post being quoted and start with its tags selected, so the
+  // "at least one team or topic" rule is already met and the quote stays on topic.
+  useEffect(() => {
+    if (!quote) return;
+    (async () => {
+      try {
+        const data = await apiFetch(`/posts/${quote}`);
+        const target: FeedPostBase = data.post.repost_of ?? data.post;
+        setQuoted(target);
+        setSelectedTeams(target.post_teams.map((x) => ({ id: x.teams.id, name: x.teams.name, logo_url: null })));
+        setSelectedTopics(
+          target.post_topics.map((x) => ({ id: x.topics.id, name: x.topics.name, description: null, icon: null }))
+        );
+      } catch (e: any) {
+        setError(e?.message ?? "Couldn’t load the post to quote");
+      }
+    })();
+  }, [quote]);
 
   const onTeamQuery = useCallback(async (q: string) => {
     setTeamQuery(q);
@@ -130,32 +139,12 @@ export default function ComposeScreen() {
           content: trimmed,
           teamIds: selectedTeams.map((t) => t.id),
           topicIds: selectedTopics.map((t) => t.id),
+          ...(quoted ? { quotedPostId: quoted.id } : {}),
         }),
       });
 
-      // The create response is only { id, created_at }; build the full FeedPost
-      // client-side from what we already have, then hand it to the feed.
-      if (me && res?.post) {
-        const optimistic: FeedPost = {
-          id: res.post.id,
-          content: trimmed,
-          created_at: res.post.created_at,
-          author_id: me.id,
-          parent_post_id: null,
-          reply_count: 0,
-          like_count: 0,
-          liked_by_me: false,
-          bookmarked_by_me: false,
-          users: {
-            username: me.username,
-            display_name: me.display_name,
-            profile_image_url: null,
-          },
-          post_teams: selectedTeams.map((t) => ({ teams: { id: t.id, name: t.name } })),
-          post_topics: selectedTopics.map((t) => ({ topics: { id: t.id, name: t.name } })),
-        };
-        publishNewPost(optimistic);
-      }
+      // The API returns the post in full feed shape, so it can go straight into the feed.
+      if (res?.post) publishNewPost(res.post);
 
       router.back();
     } catch (e: any) {
@@ -175,7 +164,7 @@ export default function ComposeScreen() {
           <Pressable onPress={() => router.back()} disabled={busy}>
             <Text style={styles.cancelButton}>Cancel</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>New Post</Text>
+          <Text style={styles.headerTitle}>{quoted ? "Quote Post" : "New Post"}</Text>
           <Pressable
             onPress={handleSubmit}
             disabled={!canSubmit}
@@ -201,6 +190,12 @@ export default function ComposeScreen() {
           <View style={styles.counterRow}>
             <Text style={[styles.charCount, { color: counterColor }]}>{remaining}</Text>
           </View>
+
+          {quoted && (
+            <View style={styles.quoteWrap}>
+              <QuotedPost post={quoted} />
+            </View>
+          )}
 
           {/* Teams */}
           <View style={styles.section}>
@@ -338,6 +333,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   counterRow: { paddingHorizontal: 16, paddingBottom: 8, alignItems: "flex-end" },
+  quoteWrap: { paddingHorizontal: 16, paddingBottom: 12 },
   charCount: { fontSize: 14, fontFamily: fonts.bodyMedium },
   section: {
     paddingHorizontal: 16,

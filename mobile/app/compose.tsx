@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -18,6 +19,7 @@ import { searchTeams, searchTopics, Team, Topic } from "../src/api/catalog";
 import { publishNewPost } from "../src/feed/optimisticFeed";
 import type { FeedPostBase } from "../src/feed/feedTypes";
 import { QuotedPost } from "../src/components/PostCard";
+import { friendlyUploadError, pickImages, uploadImage, type LocalImage } from "../src/media/upload";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 const MAX_LENGTH = 500;
@@ -37,6 +39,7 @@ export default function ComposeScreen() {
   const [pollEnabled, setPollEnabled] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [pollDuration, setPollDuration] = useState<24 | 72 | 168>(24);
+  const [images, setImages] = useState<LocalImage[]>([]);
 
   const [teamQuery, setTeamQuery] = useState("");
   const [topicQuery, setTopicQuery] = useState("");
@@ -143,13 +146,14 @@ export default function ComposeScreen() {
     !pollEnabled ||
     (pollTrimmed.every((o) => o.length > 0) &&
       new Set(pollTrimmed.map((o) => o.toLowerCase())).size === pollTrimmed.length);
-  const canSubmit = content.trim().length > 0 && !overLimit && hasTag && pollValid && !busy;
+  // Text is optional when there are pictures.
+  const canSubmit = (content.trim().length > 0 || images.length > 0) && !overLimit && hasTag && pollValid && !busy;
   // Counter colour: gray default -> amber at <=20 remaining -> red when over limit.
   const counterColor = remaining < 0 ? colors.danger : remaining <= 20 ? colors.warn : colors.textDim;
 
   async function handleSubmit() {
     const trimmed = content.trim();
-    if (!trimmed) {
+    if (!trimmed && images.length === 0) {
       setError("Post cannot be empty");
       return;
     }
@@ -169,10 +173,13 @@ export default function ComposeScreen() {
     setError(null);
     setBusy(true);
     try {
+      // Pictures go up first (resized, scanned); the post only exists once they all pass.
+      const uploaded = await Promise.all(images.map((img) => uploadImage(img, "post")));
       const res = await apiFetch("/posts", {
         method: "POST",
         body: JSON.stringify({
           content: trimmed,
+          ...(uploaded.length ? { mediaIds: uploaded.map((u) => u.id) } : {}),
           teamIds: selectedTeams.map((t) => t.id),
           topicIds: selectedTopics.map((t) => t.id),
           ...(quoted ? { quotedPostId: quoted.id } : {}),
@@ -191,7 +198,7 @@ export default function ComposeScreen() {
           ? "That post contains language we don’t allow on Fwitter."
           : e?.message === "blocked"
             ? "You can’t interact with this account."
-            : e?.message ?? "Failed to create post"
+            : friendlyUploadError(e)
       );
     } finally {
       setBusy(false);
@@ -250,7 +257,36 @@ export default function ComposeScreen() {
           )}
 
           {/* Poll */}
+          {images.length > 0 && (
+            <View style={styles.thumbRow}>
+              {images.map((img, i) => (
+                <View key={`${img.uri}-${i}`} style={styles.thumbWrap}>
+                  <Image source={{ uri: img.uri }} style={styles.thumb} />
+                  <Pressable style={styles.thumbRemove} onPress={() => setImages((prev) => prev.filter((_, j) => j !== i))} hitSlop={6}>
+                    <Ionicons name="close" size={14} color={colors.text} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
           <View style={styles.pollToggleRow}>
+            <Pressable
+              onPress={async () => {
+                try {
+                  const picked = await pickImages(4 - images.length);
+                  setImages((prev) => [...prev, ...picked].slice(0, 4));
+                } catch (e: any) {
+                  setError(e?.message ?? "Couldn’t open your photos");
+                }
+              }}
+              disabled={busy || images.length >= 4}
+              style={[styles.pollToggle, images.length >= 4 && { opacity: 0.5 }]}
+              hitSlop={6}
+            >
+              <Ionicons name="image-outline" size={18} color={colors.accent2} />
+              <Text style={styles.pollToggleText}>{images.length ? `Photos (${images.length}/4)` : "Add photos"}</Text>
+            </Pressable>
             <Pressable onPress={() => setPollEnabled((v) => !v)} disabled={busy} style={styles.pollToggle} hitSlop={6}>
               <Ionicons name={pollEnabled ? "close-circle-outline" : "stats-chart-outline"} size={18} color={colors.accent2} />
               <Text style={styles.pollToggleText}>{pollEnabled ? "Remove poll" : "Add poll"}</Text>
@@ -450,7 +486,21 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle,
   },
   matchBannerText: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.textBody },
-  pollToggleRow: { paddingHorizontal: 16, paddingBottom: 12 },
+  pollToggleRow: { flexDirection: "row", gap: 18, paddingHorizontal: 16, paddingBottom: 12 },
+  thumbRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+  thumbWrap: { width: 72, height: 72, borderRadius: radii.sm, overflow: "hidden", backgroundColor: colors.surface3 },
+  thumb: { width: "100%", height: "100%" },
+  thumbRemove: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   pollToggle: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
   pollToggleText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent2 },
   pollSection: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },

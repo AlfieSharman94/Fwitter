@@ -10,6 +10,7 @@ import { UpdateTopicsDto } from './dto/update-topics.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
 import { ModerationService } from '../moderation/moderation.service';
+import { MediaService } from '../media/media.service';
 
 @Controller('users')
 export class UsersController {
@@ -17,6 +18,7 @@ export class UsersController {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly moderation: ModerationService,
+    private readonly media: MediaService,
   ) {}
 
   @Get('me')
@@ -63,7 +65,7 @@ export class UsersController {
     });
     if (!dbUser) throw new BadRequestException('profile_not_found');
 
-    const data: { username?: string; bio?: string | null } = {};
+    const data: { username?: string; bio?: string | null; profile_image_url?: string } = {};
 
     if (dto.username !== undefined) {
       // Case-insensitive uniqueness, excluding the user's own row.
@@ -78,6 +80,10 @@ export class UsersController {
     if (dto.bio !== undefined) {
       const trimmed = dto.bio.trim();
       data.bio = trimmed === '' ? null : trimmed;
+    }
+
+    if (dto.avatarMediaId) {
+      data.profile_image_url = await this.media.avatarUrl(dbUser.id, dto.avatarMediaId);
     }
 
     try {

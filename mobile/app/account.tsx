@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -18,6 +19,7 @@ import { apiFetch } from "../src/api/client";
 import { doUpdatePassword } from "../src/auth/auth";
 import { deleteCognitoAccount } from "../src/auth/deleteAccount";
 import { useAuth } from "../src/auth/AuthProvider";
+import { friendlyUploadError, pickImages, uploadImage } from "../src/media/upload";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 type MeProfile = {
@@ -28,6 +30,7 @@ type MeProfile = {
   date_of_birth: string;
   created_at: string;
   bio: string | null;
+  profile_image_url: string | null;
 };
 
 export default function AccountScreen() {
@@ -35,6 +38,7 @@ export default function AccountScreen() {
   const { signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [profile, setProfile] = useState<MeProfile | null>(null);
 
   const [username, setUsername] = useState("");
@@ -93,6 +97,24 @@ export default function AccountScreen() {
       setProfileMsg({ ok: false, text });
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleChangeAvatar = async () => {
+    try {
+      const [img] = await pickImages(1);
+      if (!img) return;
+      setAvatarBusy(true);
+      const uploaded = await uploadImage(img, "avatar");
+      const data = await apiFetch("/users/me/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ avatarMediaId: uploaded.id }),
+      });
+      setProfile(data.user as MeProfile);
+    } catch (e: any) {
+      Alert.alert("Error", friendlyUploadError(e));
+    } finally {
+      setAvatarBusy(false);
     }
   };
 
@@ -172,6 +194,24 @@ export default function AccountScreen() {
       ) : (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            {/* Avatar */}
+            <View style={styles.avatarRow}>
+              {profile?.profile_image_url ? (
+                <Image source={{ uri: profile.profile_image_url }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Text style={styles.avatarText}>{(profile?.display_name ?? "?").charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+              <Pressable
+                style={[styles.buttonOutline, styles.avatarButton, avatarBusy && styles.buttonDisabled]}
+                onPress={handleChangeAvatar}
+                disabled={avatarBusy}
+              >
+                {avatarBusy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonOutlineText}>Change photo</Text>}
+              </Pressable>
+            </View>
+
             {/* Read-only details */}
             <Text style={styles.sectionLabel}>Details</Text>
             <View style={styles.readonlyCard}>
@@ -408,6 +448,11 @@ const styles = StyleSheet.create({
   },
   buttonOutlineText: { fontFamily: fonts.heading, fontSize: 16, color: colors.text, textTransform: "uppercase", letterSpacing: 0.3 },
   dangerHelp: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+  avatarRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  avatar: { width: 72, height: 72, borderRadius: 20 },
+  avatarPlaceholder: { backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontFamily: fonts.display, fontSize: 30, color: colors.textBody },
+  avatarButton: { flex: 1, marginTop: 0 },
   buttonDanger: {
     height: 52,
     borderRadius: radii.md,

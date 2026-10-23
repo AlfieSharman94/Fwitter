@@ -66,6 +66,8 @@ th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--div
 th { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
 tr.clickable { cursor: pointer; }
 tr.clickable:hover td { background: var(--surface3); }
+.media { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.media img { max-height: 160px; max-width: 240px; border-radius: 8px; border: 1px solid var(--border); display: block; }
 .error { color: var(--danger); margin: 8px 0; }
 .ok { color: var(--accent); margin: 8px 0; }
 .login { max-width: 360px; margin: 12vh auto; display: flex; flex-direction: column; gap: 10px; }

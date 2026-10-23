@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { publicMediaUrl } from '../media/media-url';
 
 // The one post shape every post-returning endpoint uses (feeds, profile posts,
 // post detail, replies, create, bookmarks). Add new per-post fields here so they
@@ -26,6 +27,7 @@ function basePostSelect(viewerId: string) {
     post_mentions: { select: { users: { select: { id: true, username: true } } } },
     post_hashtags: { select: { hashtags: { select: { tag: true } } } },
     matches: { select: { id: true, home_name: true, away_name: true } },
+    media: { orderBy: { position: 'asc' }, select: { id: true, key: true, width: true, height: true } },
     post_likes: { where: { user_id: viewerId }, select: { user_id: true } },
     bookmarks: { where: { user_id: viewerId }, select: { user_id: true } },
     // The viewer's own plain repost of this post, if any.
@@ -88,7 +90,7 @@ type RawQuoting = Prisma.postsGetPayload<{ select: ReturnType<typeof quotingPost
 type RawFeed = Prisma.postsGetPayload<{ select: ReturnType<typeof feedPostSelect> }>;
 
 function toBasePost(row: RawBase, viewerId: string) {
-  const { post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, matches, like_count, repost_count, ...rest } =
+  const { post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, matches, media, like_count, repost_count, ...rest } =
     row;
   const isAuthor = row.author_id === viewerId;
   return {
@@ -97,6 +99,7 @@ function toBasePost(row: RawBase, viewerId: string) {
     mentions: post_mentions.map((m) => m.users),
     hashtags: post_hashtags.map((h) => h.hashtags.tag),
     match: matches,
+    media: media.map((m) => ({ id: m.id, url: publicMediaUrl(m.key), width: m.width, height: m.height })),
     poll: polls ? toPoll(polls, isAuthor) : null,
     // Counters live on the row (maintained with the writes); counts stay author-only.
     like_count: isAuthor ? like_count : null,

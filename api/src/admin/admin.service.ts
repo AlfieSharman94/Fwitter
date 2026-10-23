@@ -3,6 +3,7 @@ import { ModerationAction, Prisma, ReportStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { publicMediaUrl } from '../media/media-url';
 
 type Actor = { id: string; role: Role };
 
@@ -71,6 +72,7 @@ export class AdminService {
             hidden_reason: true,
             report_count: true,
             users: { select: { id: true, username: true, display_name: true } },
+            media: { orderBy: { position: 'asc' }, select: { key: true } },
           },
         },
         reported: {
@@ -80,7 +82,11 @@ export class AdminService {
     });
     const nextCursor = rows.length === limit ? rows[rows.length - 1].created_at.toISOString() : null;
     return {
-      reports: rows.map(({ posts, reported, ...r }) => ({ ...r, post: posts, user: reported })),
+      reports: rows.map(({ posts, reported, ...r }) => ({
+        ...r,
+        post: posts ? { ...posts, media: posts.media.map((m) => ({ url: publicMediaUrl(m.key) })) } : null,
+        user: reported,
+      })),
       nextCursor,
     };
   }
@@ -217,7 +223,15 @@ export class AdminService {
           where: { repost_of_id: null },
           orderBy: { created_at: 'desc' },
           take: 20,
-          select: { id: true, content: true, created_at: true, hidden_at: true, hidden_reason: true, report_count: true },
+          select: {
+            id: true,
+            content: true,
+            created_at: true,
+            hidden_at: true,
+            hidden_reason: true,
+            report_count: true,
+            media: { orderBy: { position: 'asc' }, select: { key: true } },
+          },
         },
         reports_received: {
           orderBy: { created_at: 'desc' },
@@ -232,7 +246,10 @@ export class AdminService {
       },
     });
     if (!user) throw new NotFoundException('user_not_found');
-    return user;
+    return {
+      ...user,
+      posts: user.posts.map((p) => ({ ...p, media: p.media.map((m) => ({ url: publicMediaUrl(m.key) })) })),
+    };
   }
 
   async warn(actor: Actor, id: string, note: string) {

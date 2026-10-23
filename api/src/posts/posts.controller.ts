@@ -9,6 +9,7 @@ import { extractHashtags, extractMentions } from './content-entities';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { Throttle } from '@nestjs/throttler';
+import { MediaService } from '../media/media.service';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
@@ -17,6 +18,7 @@ export class PostsController {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
+    private readonly media: MediaService,
   ) {}
 
   private parseLimit(limit?: string) {
@@ -88,7 +90,9 @@ export class PostsController {
     const dbUser = await this.requireViewer(user.sub);
 
     const content = dto.content.trim();
-    if (!content) throw new BadRequestException('content_required');
+    const mediaIds = Array.from(new Set(dto.mediaIds ?? []));
+    // Text is optional when there are pictures.
+    if (!content && mediaIds.length === 0) throw new BadRequestException('content_required');
     await this.moderation.assertContentAllowed(content);
 
     let parent: { id: string; author_id: string; hidden_at: Date | null } | null = null;
@@ -203,6 +207,10 @@ export class PostsController {
         await tx.post_hashtags.createMany({
           data: rows.map((h) => ({ post_id: post.id, hashtag_id: h.id })),
         });
+      }
+
+      if (mediaIds.length) {
+        await this.media.attachToPost(tx, dbUser.id, post.id, mediaIds);
       }
 
       if (pollOptions && dto.poll) {
@@ -413,6 +421,7 @@ export class PostsController {
         quoted_post_id: true,
         repost_of_id: true,
         repost_of: { select: { author_id: true } },
+        media: { select: { key: true } },
       },
     });
     if (!post) throw new NotFoundException('post_not_found');
@@ -443,6 +452,9 @@ export class PostsController {
         });
       }
     });
+
+    // The media rows cascade with the post; the objects in the bucket are removed here.
+    void this.media.deleteObjects(post.media.map((m) => m.key));
 
     // Deleting a repost row from your profile is an undo: drop the author's notification.
     if (post.repost_of_id && post.repost_of) {

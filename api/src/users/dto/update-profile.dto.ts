@@ -11,4 +11,9 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(300)
   bio?: string;
+
+  // A READY avatar upload (POST /media/presign + complete with purpose "avatar").
+  @IsOptional()
+  @IsString()
+  avatarMediaId?: string;
 }

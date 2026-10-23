@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, askNote, fmt } from '../api';
 import type { Me, Role, UserDetail as Detail } from '../types';
 import { userStatus } from '../types';
+import { Media } from '../Media';
 
 type Target = { id: string; username: string; role: Role; suspended_until: string | null; banned_at: string | null };
 
@@ -111,7 +112,8 @@ export default function UserDetail({ me }: { me: Me }) {
                 {fmt.ago(p.created_at)} ago · {p.report_count} reports
                 {p.hidden_at && <span className="pill hidden"> hidden ({p.hidden_reason})</span>}
               </div>
-              <div className="content">{p.content || <i className="muted">(repost)</i>}</div>
+              <div className="content">{p.content || <i className="muted">{p.media.length ? '(photos only)' : '(repost)'}</i>}</div>
+              <Media media={p.media} />
               <div className="actions">
                 {p.hidden_at ? (
                   <button className="small" onClick={() => postAction(() => api(`/admin/posts/${p.id}/restore`, { method: 'POST', body: '{}' }))}>Restore</button>

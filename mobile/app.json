@@ -44,7 +44,13 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fwitter uses your photos when you add pictures to a post or change your avatar."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

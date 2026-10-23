@@ -3,3 +3,7 @@ node_modules
 .env
 
 /generated/prisma
+
+# moderation dashboard build output and deps
+admin/dist
+admin/node_modules

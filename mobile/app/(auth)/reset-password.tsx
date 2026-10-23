@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { confirmPasswordReset } from "../../src/auth/auth";
+import { colors, fonts, radii } from "../../src/theme/theme";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ email?: string }>();
-  
+
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -49,7 +61,7 @@ export default function ResetPasswordScreen() {
 
     try {
       await confirmPasswordReset(email.trim(), code.trim(), newPassword.trim());
-      
+
       // Success - navigate to sign-in with email prefilled
       router.replace({
         pathname: "/(auth)/sign-in",
@@ -72,214 +84,179 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.overlay}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.header}>
-            <Pressable onPress={() => router.back()}>
-              <Text style={styles.closeButton}>✕</Text>
-            </Pressable>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>⚽</Text>
-            </View>
-            <View style={{ width: 24 }} />
-          </View>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          </Pressable>
 
-          <View style={styles.content}>
+          <View style={styles.headerBlock}>
             <Text style={styles.title}>Reset password</Text>
             <Text style={styles.subtitle}>
               Enter the code sent to {email || "your email"} and your new password.
             </Text>
+          </View>
 
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Reset code"
-                  placeholderTextColor="#5b7083"
-                  value={code}
-                  onChangeText={setCode}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="number-pad"
-                  editable={!busy}
-                />
-                <View style={styles.inputUnderline} />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="New password"
-                  placeholderTextColor="#5b7083"
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  secureTextEntry
-                  editable={!busy}
-                />
-                <View style={styles.inputUnderline} />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Confirm password"
-                  placeholderTextColor="#5b7083"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry
-                  editable={!busy}
-                />
-                <View style={styles.inputUnderline} />
-              </View>
-
-              {!!error && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-
-              <Pressable
-                style={[styles.primaryButton, busy && styles.primaryButtonDisabled]}
-                onPress={onSubmit}
-                disabled={busy}
-              >
-                {busy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>Reset password</Text>
-                )}
-              </Pressable>
+          <View style={styles.form}>
+            <View>
+              <Text style={styles.label}>Reset code</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="6-digit code"
+                placeholderTextColor={colors.placeholder}
+                value={code}
+                onChangeText={setCode}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="number-pad"
+                editable={!busy}
+              />
             </View>
+
+            <View>
+              <Text style={styles.label}>New password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.placeholder}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                editable={!busy}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.label}>Confirm password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.placeholder}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                editable={!busy}
+              />
+            </View>
+
+            {!!error && (
+              <View style={styles.errorRow}>
+                <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <Pressable
+              style={[styles.primaryButton, busy && styles.primaryButtonDisabled]}
+              onPress={onSubmit}
+              disabled={busy}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.accentText} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Reset password</Text>
+              )}
+            </Pressable>
           </View>
         </ScrollView>
-      </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   container: {
     flex: 1,
   },
-  keyboardView: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(16, 22, 34, 0.95)",
-  },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 48,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 28,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  closeButton: {
-    fontSize: 24,
-    color: "#fff",
-    fontWeight: "300",
-  },
-  logo: {
+  backButton: {
     width: 40,
     height: 40,
-    backgroundColor: "#0d59f2",
-    borderRadius: 8,
-    justifyContent: "center",
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surface2,
     alignItems: "center",
-    shadowColor: "#0d59f2",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    justifyContent: "center",
   },
-  logoText: {
-    fontSize: 24,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 32,
-    paddingTop: 32,
-    maxWidth: 480,
-    alignSelf: "center",
-    width: "100%",
+  headerBlock: {
+    marginTop: 30,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 12,
+    fontFamily: fonts.display,
+    fontSize: 38,
+    color: colors.text,
+    textTransform: "uppercase",
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#90a4cb",
-    marginBottom: 32,
-    lineHeight: 22,
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 6,
   },
   form: {
-    gap: 24,
+    marginTop: 30,
+    gap: 18,
   },
-  inputContainer: {
-    position: "relative",
+  label: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: "#cfcfcf",
+    marginBottom: 7,
   },
   input: {
-    fontSize: 18,
-    color: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-    backgroundColor: "transparent",
-    borderBottomWidth: 1,
-    borderBottomColor: "#222f49",
+    height: 50,
+    borderRadius: radii.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontFamily: fonts.body,
   },
-  inputUnderline: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: "#0d59f2",
-    opacity: 0,
-  },
-  errorContainer: {
-    marginTop: 8,
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   errorText: {
-    fontSize: 14,
-    color: "#ff4444",
-    textAlign: "center",
+    fontFamily: fonts.bodyMedium,
+    color: colors.danger,
+    fontSize: 13,
+    flex: 1,
   },
   primaryButton: {
-    backgroundColor: "#0d59f2",
-    borderRadius: 9999,
-    height: 56,
-    justifyContent: "center",
+    height: 52,
+    borderRadius: radii.md,
+    backgroundColor: colors.accent,
     alignItems: "center",
-    shadowColor: "#0d59f2",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    marginTop: 8,
+    justifyContent: "center",
+    marginTop: 4,
   },
   primaryButtonDisabled: {
-    backgroundColor: "#999",
+    opacity: 0.6,
   },
   primaryButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: fonts.heading,
+    fontSize: 17,
+    color: colors.accentText,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
 });

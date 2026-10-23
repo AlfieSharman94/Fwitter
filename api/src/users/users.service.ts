@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * Get the database user ID from Cognito sub (JWT claim)
@@ -49,6 +53,7 @@ export class UsersService {
           following_id: targetId,
         },
       });
+      void this.notifications.notify({ recipientId: targetId, actorId: viewerId, type: 'FOLLOW' });
     } catch (e: any) {
       // P2002 = unique constraint violation (already following)
       if (e?.code !== 'P2002') {
@@ -85,6 +90,7 @@ export class UsersService {
         following_id: targetId,
       },
     });
+    void this.notifications.remove({ recipientId: targetId, actorId: viewerId, type: 'FOLLOW' });
 
     // Get updated counts
     const [followersCount, followingCount] = await Promise.all([

@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { AppState, AppStateStatus } from "react-native";
 import { bootstrapAuth, doSignIn, doSignOut, refreshAuth } from "./auth";
 import { apiFetch } from "../api/client";
+import { unregisterPushToken } from "../notifications/push";
 
 type AuthState = {
   isBootstrapping: boolean;
@@ -132,6 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       },
       signOut: async () => {
+        // Needs the session, so it runs before the tokens are cleared.
+        await unregisterPushToken();
         await doSignOut();
         setSignedIn(false);
         setIsOnboarded(null);

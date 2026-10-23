@@ -174,7 +174,7 @@ export function QuotedPost({ post }: { post: FeedPostBase }) {
   );
 }
 
-function getTimeAgo(date: Date): string {
+export function getTimeAgo(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
+import { registerPushToken } from "../src/notifications/push";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 export default function NotificationSettingsScreen() {
@@ -16,6 +17,8 @@ export default function NotificationSettingsScreen() {
     try {
       const res = await Notifications.getPermissionsAsync();
       setStatus(res.status);
+      // Covers turning it on in the OS settings and coming back.
+      if (res.status === "granted") registerPushToken();
     } catch {
       setStatus(null);
     } finally {
@@ -39,7 +42,9 @@ export default function NotificationSettingsScreen() {
     if (undetermined) {
       const res = await Notifications.requestPermissionsAsync();
       setStatus(res.status);
-      if (res.status !== "granted") {
+      if (res.status === "granted") {
+        await registerPushToken();
+      } else {
         Linking.openSettings();
       }
     } else {
@@ -82,7 +87,8 @@ export default function NotificationSettingsScreen() {
         </Pressable>
 
         <Text style={styles.note}>
-          This reflects your device’s permission for Fwitter. Delivery of actual pushes is set up separately.
+          When enabled, Fwitter sends a push when someone replies to you, mentions or quotes you, likes or reposts
+          your post, or follows you.
         </Text>
       </View>
     </SafeAreaView>

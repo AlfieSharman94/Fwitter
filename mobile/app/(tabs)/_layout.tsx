@@ -1,11 +1,31 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { colors, fonts } from '../../src/theme/theme';
+import { refreshUnread, useUnreadCount } from '../../src/notifications/unread';
+import { registerPushToken } from '../../src/notifications/push';
 
 export default function TabLayout() {
+  const unread = useUnreadCount();
+
+  // The tabs only mount once signed in and onboarded, so this is where the badge
+  // gets synced and this device is registered for push.
+  useEffect(() => {
+    refreshUnread();
+    registerPushToken();
+    const interval = setInterval(refreshUnread, 60_000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshUnread();
+    });
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, []);
+
   return (
     <Tabs
       screenOptions={{
@@ -27,6 +47,20 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size || 24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="activity"
+        options={{
+          title: 'Activity',
+          tabBarIcon: ({ color, size }) => <Ionicons name="notifications" size={size || 24} color={color} />,
+          tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.accent,
+            color: colors.accentText,
+            fontFamily: fonts.bodyBold,
+            fontSize: 11,
+          },
         }}
       />
       <Tabs.Screen

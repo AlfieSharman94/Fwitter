@@ -17,6 +17,7 @@ import {
 } from '@expo-google-fonts/roboto-condensed';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthProvider';
+import { usePushNavigation } from '../src/notifications/push';
 import { colors } from '../src/theme/theme';
 
 export const unstable_settings = {
@@ -40,6 +41,10 @@ function Gate() {
   const { isBootstrapping, isSignedIn, isOnboarded } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Tapped push notifications open their post or profile; the Gate above still
+  // applies, so a signed-out tap just lands on Welcome.
+  usePushNavigation();
 
   useEffect(() => {
     if (isBootstrapping) return;

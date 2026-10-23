@@ -6,6 +6,7 @@ import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import type { FeedPost } from "../../src/feed/feedTypes";
+import { PostCard } from "../../src/components/PostCard";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 type UserProfile = {
@@ -20,18 +21,6 @@ type UserProfile = {
   isFollowing: boolean;
   isSelf: boolean;
 };
-
-function getTimeAgo(date: Date): string {
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return date.toLocaleDateString();
-}
 
 export default function UserProfileScreen() {
   const router = useRouter();
@@ -267,29 +256,13 @@ export default function UserProfileScreen() {
               {profile.isSelf ? "You haven’t posted yet." : "No posts yet."}
             </Text>
           ) : (
-            posts.map((p) => {
-              const teams = p.post_teams.map((x) => x.teams.name);
-              const topics = p.post_topics.map((x) => x.topics.name);
-              return (
-                <View key={p.id} style={styles.postRow}>
-                  <View style={styles.postRowTop}>
-                    <Text style={styles.postTime}>{getTimeAgo(new Date(p.created_at))}</Text>
-                    {profile.isSelf && (
-                      <Pressable onPress={() => handleDeletePost(p.id)} hitSlop={10}>
-                        <Ionicons name="trash-outline" size={18} color={colors.textDim} />
-                      </Pressable>
-                    )}
-                  </View>
-                  <Text style={styles.postContent}>{p.content}</Text>
-                  {(teams.length > 0 || topics.length > 0) && (
-                    <Text style={styles.postTags}>
-                      {teams.length > 0 ? `⚽ ${teams.slice(0, 2).join(", ")}` : ""}
-                      {topics.length > 0 ? `${teams.length > 0 ? "   " : ""}🏷️ ${topics.slice(0, 2).join(", ")}` : ""}
-                    </Text>
-                  )}
-                </View>
-              );
-            })
+            posts.map((p) => (
+              <PostCard
+                key={p.id}
+                post={p}
+                onDelete={profile.isSelf ? () => handleDeletePost(p.id) : undefined}
+              />
+            ))
           )}
         </View>
       </ScrollView>
@@ -463,34 +436,5 @@ const styles = StyleSheet.create({
     color: colors.textDim,
     textAlign: "center",
     marginTop: 24,
-  },
-  postRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.rowDivider,
-  },
-  postRowTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  postTime: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.textDim,
-  },
-  postContent: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 21,
-    color: colors.textBody,
-  },
-  postTags: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.textDim,
-    marginTop: 8,
   },
 });

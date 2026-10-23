@@ -1,4 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { feedPostSelect, toFeedPost } from '../posts/post-shape';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateProfileDto } from './dto/create-profile.dto';
@@ -258,19 +259,11 @@ export class UsersController {
       },
       orderBy: { created_at: 'desc' },
       take,
-      select: {
-        id: true,
-        content: true,
-        created_at: true,
-        author_id: true,
-        users: { select: { username: true, display_name: true, profile_image_url: true } },
-        post_teams: { select: { teams: { select: { id: true, name: true } } } },
-        post_topics: { select: { topics: { select: { id: true, name: true } } } },
-      },
+      select: feedPostSelect,
     });
 
     const nextCursor = posts.length ? posts[posts.length - 1].created_at.toISOString() : null;
-    return { posts, nextCursor };
+    return { posts: posts.map(toFeedPost), nextCursor };
   }
 
   @Post(':id/follow')

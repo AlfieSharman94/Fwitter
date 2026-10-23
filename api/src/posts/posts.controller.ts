@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { feedPostSelect, toFeedPost } from './post-shape';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
@@ -59,7 +60,7 @@ export class PostsController {
           content,
           parent_post_id: dto.parentPostId ?? null,
         },
-        select: { id: true, created_at: true },
+        select: feedPostSelect,
       });
 
       if (teamIds.length) {
@@ -77,7 +78,7 @@ export class PostsController {
       return post;
     });
 
-    return { ok: true, post: created };
+    return { ok: true, post: toFeedPost(created) };
   }
 
   @Get(':id')
@@ -85,18 +86,19 @@ export class PostsController {
     const post = await this.prisma.posts.findUnique({
       where: { id },
       select: {
-        id: true,
-        content: true,
-        created_at: true,
-        parent_post_id: true,
-        users: { select: { username: true, display_name: true, profile_image_url: true } },
-        post_teams: { select: { teams: { select: { id: true, name: true } } } },
-        post_topics: { select: { topics: { select: { id: true, name: true } } } },
+        ...feedPostSelect,
+        // `posts` is the self-relation to the parent, used for "Replying to @name".
+        posts: { select: { id: true, users: { select: { username: true } } } },
       },
     });
 
-    if (!post) throw new BadRequestException('post_not_found');
-    return { post };
+    if (!post) throw new NotFoundException('post_not_found');
+
+    const { posts: parent, ...rest } = post;
+    return {
+      post: toFeedPost(rest),
+      parent: parent ? { id: parent.id, username: parent.users.username } : null,
+    };
   }
 
   @Get(':id/replies')
@@ -111,16 +113,11 @@ export class PostsController {
       },
       orderBy: { created_at: 'desc' },
       take,
-      select: {
-        id: true,
-        content: true,
-        created_at: true,
-        users: { select: { username: true, display_name: true, profile_image_url: true } },
-      },
+      select: feedPostSelect,
     });
 
     const nextCursor = replies.length ? replies[replies.length - 1].created_at.toISOString() : null;
-    return { replies, nextCursor };
+    return { replies: replies.map(toFeedPost), nextCursor };
   }
 
   @Delete(':id')

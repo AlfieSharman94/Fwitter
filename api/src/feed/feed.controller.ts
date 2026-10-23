@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { feedPostSelect, toFeedPost } from '../posts/post-shape';
 
 @Controller('feed')
 @UseGuards(JwtAuthGuard)
@@ -45,19 +46,11 @@ export class FeedController {
       },
       orderBy: { created_at: 'desc' },
       take,
-      select: {
-        id: true,
-        content: true,
-        created_at: true,
-        author_id: true,
-        users: { select: { username: true, display_name: true, profile_image_url: true } },
-        post_teams: { select: { teams: { select: { id: true, name: true } } } },
-        post_topics: { select: { topics: { select: { id: true, name: true } } } },
-      },
+      select: feedPostSelect,
     });
 
     const nextCursor = posts.length ? posts[posts.length - 1].created_at.toISOString() : null;
-    return { posts, nextCursor };
+    return { posts: posts.map(toFeedPost), nextCursor };
   }
 
   @Get('12th-man')
@@ -111,18 +104,10 @@ export class FeedController {
       where,
       orderBy: { created_at: 'desc' },
       take,
-      select: {
-        id: true,
-        content: true,
-        created_at: true,
-        author_id: true,
-        users: { select: { username: true, display_name: true, profile_image_url: true } },
-        post_teams: { select: { teams: { select: { id: true, name: true } } } },
-        post_topics: { select: { topics: { select: { id: true, name: true } } } },
-      },
+      select: feedPostSelect,
     });
 
     const nextCursor = posts.length ? posts[posts.length - 1].created_at.toISOString() : null;
-    return { posts, nextCursor };
+    return { posts: posts.map(toFeedPost), nextCursor };
   }
 }

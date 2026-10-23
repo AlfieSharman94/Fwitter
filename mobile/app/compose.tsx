@@ -141,6 +141,8 @@ export default function ComposeScreen() {
           content: trimmed,
           created_at: res.post.created_at,
           author_id: me.id,
+          parent_post_id: null,
+          reply_count: 0,
           users: {
             username: me.username,
             display_name: me.display_name,

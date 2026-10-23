@@ -91,6 +91,7 @@ function Gate() {
         <Stack.Screen name="(onboarding)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="users/[id]" />
+        <Stack.Screen name="posts/[id]" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="welcome-success" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

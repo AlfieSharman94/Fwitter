@@ -6,47 +6,84 @@ import { apiFetch } from "../api/client";
 import { unregisterPushToken } from "../notifications/push";
 import { setMe } from "./me";
 
+// What GET /users/me/profile says about where the signed-in user should be.
+export type ProfileStatus = {
+  onboarded: boolean;
+  // A 13 to 15 year old whose parent or guardian has not confirmed yet.
+  consentPending: boolean;
+  guardianEmail: string | null;
+  // The profile row is gone (e.g. the guardian declined and the account was deleted).
+  profileMissing: boolean;
+};
+
 type AuthState = {
   isBootstrapping: boolean;
   isSignedIn: boolean;
   isOnboarded: boolean | null; // null = unknown, true/false = known
+  consentPending: boolean | null; // null = unknown
+  guardianEmail: string | null;
   signIn: (usernameOrEmail: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   checkOnboarding: () => Promise<boolean>;
-  refreshAuthState: () => Promise<void>;
+  refreshAuthState: () => Promise<ProfileStatus | null>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+
+const UNKNOWN_PROFILE: ProfileStatus = { onboarded: false, consentPending: false, guardianEmail: null, profileMissing: false };
+
+const loadProfileStatus = async (): Promise<ProfileStatus> => {
+  try {
+    const profile = await apiFetch("/users/me/profile", { method: "GET" });
+    const user = profile?.user;
+    // If profile exists and has is_onboarded flag, use it; otherwise the onboarding flow will verify.
+    if (user?.is_onboarded === undefined) return UNKNOWN_PROFILE;
+    return {
+      onboarded: !!user.is_onboarded,
+      consentPending: !!user.consent_pending,
+      guardianEmail: user.guardian_consent?.guardian_email ?? null,
+      profileMissing: false,
+    };
+  } catch (e: any) {
+    const errorMsg = e?.message || "";
+    // Any failure (API down, 404, anything else) reads as "not onboarded"; this keeps
+    // bootstrap quiet when the API server is unreachable. 404 is also remembered, since
+    // it means the profile row itself is gone.
+    const profileMissing = errorMsg.includes("profile_not_found") || errorMsg.includes("404");
+    return { ...UNKNOWN_PROFILE, profileMissing };
+  }
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isBootstrapping, setBootstrapping] = useState(true);
   const [isSignedIn, setSignedIn] = useState(false);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  const [consentPending, setConsentPending] = useState<boolean | null>(null);
+  const [guardianEmail, setGuardianEmail] = useState<string | null>(null);
 
-  const checkOnboardingStatus = async (): Promise<boolean> => {
+  const applyStatus = (status: ProfileStatus) => {
+    setIsOnboarded(status.onboarded);
+    setConsentPending(status.consentPending);
+    setGuardianEmail(status.guardianEmail);
+  };
+
+  const clearStatus = () => {
+    setIsOnboarded(null);
+    setConsentPending(null);
+    setGuardianEmail(null);
+  };
+
+  const signOut = async () => {
+    // Needs the session, so it runs before the tokens are cleared.
+    await unregisterPushToken();
     try {
-      // Try to get user profile to check if they're onboarded
-      const profile = await apiFetch("/users/me/profile", { method: "GET" });
-      // If profile exists and has is_onboarded flag, use it
-      if (profile?.user?.is_onboarded !== undefined) {
-        return profile.user.is_onboarded;
-      }
-      // Default to not onboarded - onboarding flow will verify
-      return false;
-    } catch (e: any) {
-      const errorMsg = e?.message || "";
-      // If API is unavailable, don't throw - just return false (not onboarded)
-      // This prevents errors during bootstrap when API server is down
-      if (errorMsg.includes("Cannot reach API") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
-        return false; // Assume not onboarded if API is down
-      }
-      // 404 means profile doesn't exist - not onboarded
-      if (errorMsg.includes("profile_not_found") || errorMsg.includes("404")) {
-        return false;
-      }
-      // Can't determine - assume not onboarded
-      return false;
+      await doSignOut();
+    } catch {
+      // Already signed out (e.g. the Cognito user was just deleted): local state still resets.
     }
+    setMe(null);
+    setSignedIn(false);
+    clearStatus();
   };
 
   useEffect(() => {
@@ -57,21 +94,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSignedIn(true);
           // Check onboarding status (silently fail if API is unavailable)
           try {
-            const onboarded = await checkOnboardingStatus();
-            setIsOnboarded(onboarded);
+            applyStatus(await loadProfileStatus());
           } catch (e: any) {
             // If API is unavailable during bootstrap, just set to null (unknown)
             // Don't log errors during bootstrap to reduce noise
-            setIsOnboarded(null);
+            clearStatus();
           }
         } else {
           setSignedIn(false);
-          setIsOnboarded(null);
+          clearStatus();
         }
       } catch (e: any) {
         // Silent failure on bootstrap
         setSignedIn(false);
-        setIsOnboarded(null);
+        clearStatus();
       } finally {
         setBootstrapping(false);
       }
@@ -89,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Refresh token expired or revoked — force sign-out
           await doSignOut();
           setSignedIn(false);
-          setIsOnboarded(null);
+          clearStatus();
         }
       }
       appState.current = nextState;
@@ -102,53 +138,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isBootstrapping,
       isSignedIn,
       isOnboarded,
+      consentPending,
+      guardianEmail,
       signIn: async (u, p) => {
         await doSignIn(u, p);
-        
+
         // Sanity check: verify the session works with the API
         try {
           await apiFetch("/users/me");
           setSignedIn(true);
           // Check onboarding status after sign in
-          const onboarded = await checkOnboardingStatus();
-          setIsOnboarded(onboarded);
+          applyStatus(await loadProfileStatus());
         } catch (e: any) {
           const errorMsg = e?.message || "";
-          
+
           // If it's a network error (API server not running), still allow sign-in
           // but show a helpful error message
           if (errorMsg.includes("Cannot reach API") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
             // API server is down - still mark as signed in (Cognito worked)
             // but user will see errors when trying to use API features
             setSignedIn(true);
-            setIsOnboarded(null);
+            clearStatus();
             throw new Error("Signed in successfully, but cannot connect to API server. Please ensure the API is running (cd api && npm run start:dev)");
           }
-          
+
           // For other errors (401, etc.), treat as authentication failure
           await doSignOut();
           setSignedIn(false);
-          setIsOnboarded(null);
+          clearStatus();
           // Preserve the original error message if it's more specific
           throw new Error(errorMsg || "Session invalid—please sign in again");
         }
       },
-      signOut: async () => {
-        // Needs the session, so it runs before the tokens are cleared.
-        await unregisterPushToken();
-        try {
-          await doSignOut();
-        } catch {
-          // Already signed out (e.g. the Cognito user was just deleted): local state still resets.
-        }
-        setMe(null);
-        setSignedIn(false);
-        setIsOnboarded(null);
-      },
+      signOut,
       checkOnboarding: async () => {
-        const onboarded = await checkOnboardingStatus();
-        setIsOnboarded(onboarded);
-        return onboarded;
+        const status = await loadProfileStatus();
+        applyStatus(status);
+        return status.onboarded;
       },
       // Re-syncs isSignedIn/isOnboarded with reality. The onboarding screens
       // (topics.tsx, confirm-signup.tsx) sign in via the raw auth.ts functions
@@ -156,20 +182,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // this context still thinks the user is signed out right after they
       // finish onboarding — and the navigation gate in _layout.tsx bounces
       // them back out past the screen they just completed. Call this once,
-      // right before navigating away, after onboarding finishes.
+      // right before navigating away, after onboarding finishes. The pending
+      // consent screen also calls it to see whether the guardian has confirmed.
       refreshAuthState: async () => {
         const user = await bootstrapAuth();
-        if (user) {
-          setSignedIn(true);
-          const onboarded = await checkOnboardingStatus();
-          setIsOnboarded(onboarded);
-        } else {
+        if (!user) {
           setSignedIn(false);
-          setIsOnboarded(null);
+          clearStatus();
+          return null;
         }
+        const status = await loadProfileStatus();
+        if (status.profileMissing && consentPending === true) {
+          // We were waiting for consent and the profile is gone: the guardian declined and
+          // the account was deleted. Drop the session rather than restarting onboarding.
+          await signOut();
+          return status;
+        }
+        setSignedIn(true);
+        applyStatus(status);
+        return status;
       },
     }),
-    [isBootstrapping, isSignedIn, isOnboarded]
+    [isBootstrapping, isSignedIn, isOnboarded, consentPending, guardianEmail]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -98,6 +98,16 @@ export default function UserDetail({ me }: { me: Me }) {
               Joined {fmt.when(user.created_at)} · DOB {user.date_of_birth.slice(0, 10)}
               {user.suspended_until && status === 'suspended' && <> · suspended until {fmt.when(user.suspended_until)}</>}
               {user.banned_at && <> · banned {fmt.when(user.banned_at)}</>}
+              {user.age_tier === 'JUNIOR' && (
+                <>
+                  {' · guardian consent '}
+                  {!user.guardian_consent
+                    ? 'not requested'
+                    : user.guardian_consent.confirmed_at
+                      ? `confirmed ${fmt.when(user.guardian_consent.confirmed_at)} (${user.guardian_consent.guardian_email})`
+                      : `pending since ${fmt.when(user.guardian_consent.sent_at)} (${user.guardian_consent.guardian_email})`}
+                </>
+              )}
             </div>
             {user.bio && <div className="content">{user.bio}</div>}
           </div>

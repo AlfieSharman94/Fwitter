@@ -63,13 +63,13 @@ export default function ConfirmSignUpScreen() {
       // 8. Sync this context's signed-in/onboarded state with reality — without
       // this the navigation gate still thinks we're signed out and bounces us
       // back out right after we finish.
-      await refreshAuthState();
+      const status = await refreshAuthState();
 
       // 9. Clean up
       await SecureStore.deleteItemAsync(ONBOARDING_DATA_KEY);
 
-      // 10. Done
-      router.replace("/welcome-success");
+      // 10. Done. A 13 to 15 year old waits for a parent or guardian to confirm first.
+      router.replace(status?.consentPending ? "/consent-pending" : "/welcome-success");
     } catch (e: any) {
       const errorName = e?.name;
       if (errorName === "CodeMismatchException") {

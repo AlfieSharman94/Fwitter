@@ -1,16 +1,22 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { AgeTier } from '@prisma/client';
 import { feedPostSelect, toFeedPost } from '../posts/post-shape';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CompleteOnboardingDto, GuardianEmailDto } from './dto/guardian.dto';
 import { deriveAgeTier } from './age-tier.util';
 import { UpdateTeamsDto } from './dto/update-teams.dto';
 import { UpdateTopicsDto } from './dto/update-topics.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AllowPendingConsent } from '../auth/allow-pending-consent.decorator';
 import { UsersService } from './users.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { MediaService } from '../media/media.service';
+import { ConsentService } from '../consent/consent.service';
+import { isConsentPending } from '../consent/consent-status';
 
 @Controller('users')
 export class UsersController {
@@ -19,10 +25,13 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly moderation: ModerationService,
     private readonly media: MediaService,
+    private readonly consent: ConsentService,
   ) {}
 
+  // The app's post-sign-in session check, so it must work for an account awaiting consent.
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
   me(@CurrentUser() user: { sub: string; email?: string }) {
     return { ok: true, user };
   }
@@ -38,10 +47,28 @@ export class UsersController {
     bio: true,
     profile_image_url: true,
     verified_at: true,
+    age_tier: true,
+    guardian_consent: { select: { guardian_email: true, sent_at: true, confirmed_at: true } },
   } as const;
+
+  // consent_pending is the server's word on whether the app should show the waiting screen.
+  private withConsentFlag<
+    T extends { id: string; age_tier: AgeTier; is_onboarded: boolean; guardian_consent: { confirmed_at: Date | null } | null },
+  >(profile: T) {
+    return {
+      ...profile,
+      consent_pending: isConsentPending({
+        id: profile.id,
+        age_tier: profile.age_tier,
+        is_onboarded: profile.is_onboarded,
+        consent_confirmed_at: profile.guardian_consent?.confirmed_at ?? null,
+      }),
+    };
+  }
 
   @Get('me/profile')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
   async getMyProfile(@CurrentUser() user: { sub: string }) {
     const profile = await this.prisma.users.findUnique({
       where: { cognito_sub: user.sub },
@@ -50,7 +77,7 @@ export class UsersController {
     if (!profile) {
       throw new NotFoundException('profile_not_found');
     }
-    return { user: profile };
+    return { user: this.withConsentFlag(profile) };
   }
 
   @Patch('me/profile')
@@ -93,7 +120,7 @@ export class UsersController {
         data,
         select: this.meProfileSelect,
       });
-      return { user: updated };
+      return { user: this.withConsentFlag(updated) };
     } catch (e: any) {
       if (e?.code === 'P2002') throw new ConflictException('username_taken');
       throw e;
@@ -102,6 +129,7 @@ export class UsersController {
 
   @Post('me/profile')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
   async createMyProfile(
     @CurrentUser() user: { sub: string; email?: string },
     @Body() dto: CreateProfileDto,
@@ -133,6 +161,8 @@ export class UsersController {
         },
         select: { id: true, username: true, display_name: true, email: true, is_onboarded: true },
       });
+      // The guard cached "no row" for this sub moments ago; the next request must see the row.
+      this.moderation.invalidateStatusBySub(user.sub);
 
       return { user: created };
     } catch (e: any) {
@@ -149,9 +179,12 @@ export class UsersController {
     }
   }
 
+  // A JUNIOR account is locked from here until a guardian confirms (see JwtAuthGuard). The
+  // guardian email is optional in the body: a JUNIOR who gave none is asked for it by the app.
   @Post('me/onboarding/complete')
   @UseGuards(JwtAuthGuard)
-  async completeOnboarding(@CurrentUser() user: { sub: string }) {
+  @AllowPendingConsent()
+  async completeOnboarding(@CurrentUser() user: { sub: string }, @Body() dto: CompleteOnboardingDto) {
     const dbUser = await this.prisma.users.findUnique({
       where: { cognito_sub: user.sub },
       select: { id: true },
@@ -162,12 +195,35 @@ export class UsersController {
       where: { id: dbUser.id },
       data: { is_onboarded: true },
     });
+    this.moderation.invalidateStatusBySub(user.sub);
+    const consent = await this.consent.ensureRequested(dbUser.id, dto.guardianEmail);
 
-    return { ok: true };
+    return { ok: true, consent };
+  }
+
+  @Patch('me/guardian')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async setGuardian(@CurrentUser() user: { sub: string }, @Body() dto: GuardianEmailDto) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
+    const consent = await this.consent.setGuardian(viewerId, dto.guardianEmail);
+    return { ok: true, consent };
+  }
+
+  @Post('me/guardian/resend')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async resendGuardianEmail(@CurrentUser() user: { sub: string }) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
+    const consent = await this.consent.resend(viewerId);
+    return { ok: true, consent };
   }
 
   @Put('me/teams')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
   async setTeams(
     @CurrentUser() user: { sub: string },
     @Body() dto: UpdateTeamsDto,
@@ -208,6 +264,7 @@ export class UsersController {
 
   @Put('me/topics')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
   async setTopics(
     @CurrentUser() user: { sub: string },
     @Body() dto: UpdateTopicsDto,
@@ -359,6 +416,7 @@ export class UsersController {
   // reports and blocks. The client deletes the Cognito user afterwards.
   @Delete('me')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingConsent()
   async deleteMyAccount(@CurrentUser() user: { sub: string }) {
     const dbUser = await this.prisma.users.findUnique({
       where: { cognito_sub: user.sub },

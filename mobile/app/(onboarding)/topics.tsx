@@ -136,12 +136,13 @@ export default function TopicsScreen() {
       // (harmless if already signed in from the resume path above) and finish.
       await doSignIn(onboardingData.email, onboardingData.password);
       await completeOnboardingProfile({ ...onboardingData, topicIds });
-      await refreshAuthState();
+      const status = await refreshAuthState();
 
       // Clean up
       await SecureStore.deleteItemAsync(ONBOARDING_DATA_KEY);
 
-      router.replace("/welcome-success");
+      // A 13 to 15 year old waits for a parent or guardian to confirm before entering.
+      router.replace(status?.consentPending ? "/consent-pending" : "/welcome-success");
     } catch (e: any) {
       setError(e?.message ?? "Failed to complete onboarding");
     } finally {

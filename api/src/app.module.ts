@@ -21,6 +21,8 @@ import { ModerationModule } from './moderation/moderation.module';
 import { AdminModule } from './admin/admin.module';
 import { MediaModule } from './media/media.module';
 import { DmModule } from './dm/dm.module';
+import { EmailModule } from './email/email.module';
+import { ConsentModule } from './consent/consent.module';
 
 const ADMIN_DIST = join(__dirname, '..', 'admin', 'dist');
 
@@ -37,6 +39,8 @@ const ADMIN_DIST = join(__dirname, '..', 'admin', 'dist');
       : []),
     ModerationModule,
     MediaModule,
+    EmailModule,
+    ConsentModule,
     PrismaModule,
     AuthModule,
     UsersModule,

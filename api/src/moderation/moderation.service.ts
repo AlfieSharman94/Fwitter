@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ReportReason, Role } from '@prisma/client';
+import { AgeTier, Prisma, ReportReason, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildBannedPattern, containsBannedWord } from './banned-words';
+import { isConsentPending } from '../consent/consent-status';
 
 // Reports from this many distinct accounts hide a post until a moderator looks at it.
 export const AUTO_HIDE_REPORTS = 3;
@@ -14,6 +15,9 @@ export type AccountStatus = {
   role: Role;
   suspended_until: Date | null;
   banned_at: Date | null;
+  age_tier: AgeTier;
+  is_onboarded: boolean;
+  consent_confirmed_at: Date | null;
 };
 
 export type ReportInput = {
@@ -42,7 +46,15 @@ export class ModerationService {
 
     const u = await this.prisma.users.findUnique({
       where: { cognito_sub: sub },
-      select: { id: true, role: true, suspended_until: true, banned_at: true },
+      select: {
+        id: true,
+        role: true,
+        suspended_until: true,
+        banned_at: true,
+        age_tier: true,
+        is_onboarded: true,
+        guardian_consent: { select: { confirmed_at: true } },
+      },
     });
     const entry: AccountStatus = {
       at: Date.now(),
@@ -50,6 +62,9 @@ export class ModerationService {
       role: u?.role ?? Role.USER,
       suspended_until: u?.suspended_until ?? null,
       banned_at: u?.banned_at ?? null,
+      age_tier: u?.age_tier ?? AgeTier.STANDARD,
+      is_onboarded: u?.is_onboarded ?? false,
+      consent_confirmed_at: u?.guardian_consent?.confirmed_at ?? null,
     };
     this.statusCache.set(sub, entry);
     return entry;
@@ -59,6 +74,12 @@ export class ModerationService {
     for (const [sub, entry] of this.statusCache) {
       if (entry.id === userId) this.statusCache.delete(sub);
     }
+  }
+
+  // For the moment a profile row is created or finishes onboarding: the cached entry for that
+  // sub predates the row (id null), so invalidateStatus cannot find it.
+  invalidateStatusBySub(sub: string) {
+    this.statusCache.delete(sub);
   }
 
   // Drops the whole cache; only needed when the user lookup itself changes (tests, deletes).
@@ -71,6 +92,14 @@ export class ModerationService {
     if (status.banned_at) throw new ForbiddenException({ message: 'account_banned' });
     if (status.suspended_until && status.suspended_until.getTime() > Date.now()) {
       throw new ForbiddenException({ message: 'account_suspended', until: status.suspended_until.toISOString() });
+    }
+  }
+
+  // A JUNIOR account stays locked after onboarding until a guardian confirms. Routes the pending
+  // screen needs opt out with @AllowPendingConsent.
+  async assertConsented(sub: string) {
+    if (isConsentPending(await this.accountStatus(sub))) {
+      throw new ForbiddenException({ message: 'consent_pending' });
     }
   }
 

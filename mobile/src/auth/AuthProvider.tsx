@@ -5,6 +5,7 @@ import { bootstrapAuth, doSignIn, doSignOut, refreshAuth } from "./auth";
 import { apiFetch } from "../api/client";
 import { unregisterPushToken } from "../notifications/push";
 import { setMe } from "./me";
+import { onSessionLost } from "./session";
 
 // What GET /users/me/profile says about where the signed-in user should be.
 export type ProfileStatus = {
@@ -24,7 +25,8 @@ type AuthState = {
   guardianEmail: string | null;
   signIn: (usernameOrEmail: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  checkOnboarding: () => Promise<boolean>;
+  // null when the API could not be reached.
+  checkOnboarding: () => Promise<boolean | null>;
   refreshAuthState: () => Promise<ProfileStatus | null>;
 };
 
@@ -32,7 +34,9 @@ const AuthContext = createContext<AuthState | null>(null);
 
 const UNKNOWN_PROFILE: ProfileStatus = { onboarded: false, consentPending: false, guardianEmail: null, profileMissing: false };
 
-const loadProfileStatus = async (): Promise<ProfileStatus> => {
+// null means "could not tell" (API unreachable): the gate then shows a retry screen
+// instead of dropping a signed-in user into onboarding.
+const loadProfileStatus = async (): Promise<ProfileStatus | null> => {
   try {
     const profile = await apiFetch("/users/me/profile", { method: "GET" });
     const user = profile?.user;
@@ -46,9 +50,11 @@ const loadProfileStatus = async (): Promise<ProfileStatus> => {
     };
   } catch (e: any) {
     const errorMsg = e?.message || "";
-    // Any failure (API down, 404, anything else) reads as "not onboarded"; this keeps
-    // bootstrap quiet when the API server is unreachable. 404 is also remembered, since
-    // it means the profile row itself is gone.
+    if (errorMsg.includes("Can’t reach") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
+      return null;
+    }
+    // Anything else reads as "not onboarded". 404 is also remembered, since it means the
+    // profile row itself is gone.
     const profileMissing = errorMsg.includes("profile_not_found") || errorMsg.includes("404");
     return { ...UNKNOWN_PROFILE, profileMissing };
   }
@@ -61,16 +67,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [consentPending, setConsentPending] = useState<boolean | null>(null);
   const [guardianEmail, setGuardianEmail] = useState<string | null>(null);
 
-  const applyStatus = (status: ProfileStatus) => {
-    setIsOnboarded(status.onboarded);
-    setConsentPending(status.consentPending);
-    setGuardianEmail(status.guardianEmail);
-  };
-
   const clearStatus = () => {
     setIsOnboarded(null);
     setConsentPending(null);
     setGuardianEmail(null);
+  };
+
+  const applyStatus = (status: ProfileStatus | null) => {
+    if (!status) {
+      clearStatus();
+      return;
+    }
+    setIsOnboarded(status.onboarded);
+    setConsentPending(status.consentPending);
+    setGuardianEmail(status.guardianEmail);
   };
 
   const signOut = async () => {
@@ -114,6 +124,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // The API client signs out locally on an expired or refused session; mirror that here
+  // so the gate sends the user to Welcome straight away.
+  useEffect(
+    () =>
+      onSessionLost(() => {
+        setMe(null);
+        setSignedIn(false);
+        clearStatus();
+      }),
+    []
+  );
+
   // Proactively refresh tokens when the app returns to the foreground.
   // This covers the case where the user backgrounds the app for >1 hour.
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -154,12 +176,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // If it's a network error (API server not running), still allow sign-in
           // but show a helpful error message
-          if (errorMsg.includes("Cannot reach API") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
-            // API server is down - still mark as signed in (Cognito worked)
-            // but user will see errors when trying to use API features
+          if (errorMsg.includes("Can’t reach") || errorMsg.includes("Network request failed") || errorMsg.includes("Failed to fetch")) {
+            // Cognito worked but the API is unreachable: stay signed in, the gate shows a retry screen.
             setSignedIn(true);
             clearStatus();
-            throw new Error("Signed in successfully, but cannot connect to API server. Please ensure the API is running (cd api && npm run start:dev)");
+            throw new Error("Signed in, but Fwitter can’t be reached right now. Check your connection and try again.");
           }
 
           // For other errors (401, etc.), treat as authentication failure
@@ -174,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       checkOnboarding: async () => {
         const status = await loadProfileStatus();
         applyStatus(status);
-        return status.onboarded;
+        return status ? status.onboarded : null;
       },
       // Re-syncs isSignedIn/isOnboarded with reality. The onboarding screens
       // (topics.tsx, confirm-signup.tsx) sign in via the raw auth.ts functions
@@ -192,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return null;
         }
         const status = await loadProfileStatus();
-        if (status.profileMissing && consentPending === true) {
+        if (status?.profileMissing && consentPending === true) {
           // We were waiting for consent and the profile is gone: the guardian declined and
           // the account was deleted. Drop the session rather than restarting onboarding.
           await signOut();

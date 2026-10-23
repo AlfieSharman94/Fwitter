@@ -13,13 +13,22 @@ type Team = {
   id: string;
   name: string;
   logo_url: string | null;
+  league: string | null;
+  country: string | null;
 };
+
+// English clubs are told apart by division, everyone else by country.
+function teamSubtitle(team: Team) {
+  return team.country === "England" ? team.league : team.country;
+}
 
 export default function TeamSelectionScreen() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [featured, setFeatured] = useState<Team[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [results, setResults] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,14 +44,31 @@ export default function TeamSelectionScreen() {
           id: data.primaryTeamId,
           name: data.primaryTeamName,
           logo_url: data.primaryTeamLogoUrl ?? null,
+          league: null,
+          country: null,
         });
+      }
+    })();
+  }, []);
+
+  // Default list shown until the user types something.
+  useEffect(() => {
+    (async () => {
+      try {
+        // Public endpoint; the user is not signed in yet during onboarding.
+        const data = await apiFetch("/teams/featured", { auth: false });
+        setFeatured(data.teams ?? []);
+      } catch (e: any) {
+        setError(e?.message ?? "Failed to load teams");
+      } finally {
+        setFeaturedLoading(false);
       }
     })();
   }, []);
 
   const searchTeams = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
-      setTeams([]);
+      setResults([]);
       return;
     }
 
@@ -51,13 +77,17 @@ export default function TeamSelectionScreen() {
     try {
       // Public endpoint; the user is not signed in yet during onboarding.
       const data = await apiFetch(`/teams/search?q=${encodeURIComponent(searchQuery)}`, { auth: false });
-      setTeams(data.teams ?? []);
+      setResults(data.teams ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to search teams");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const searching = query.trim().length > 0;
+  const teams = searching ? results : featured;
+  const showSpinner = searching ? loading : featuredLoading;
 
   const handleContinue = async () => {
     if (!selectedTeam) {
@@ -114,7 +144,7 @@ export default function TeamSelectionScreen() {
               />
             </View>
 
-            {loading && (
+            {showSpinner && (
               <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color={colors.accent} />
               </View>
@@ -122,10 +152,15 @@ export default function TeamSelectionScreen() {
 
             {error && <Text style={styles.errorText}>{error}</Text>}
 
+            {!searching && featured.length > 0 && (
+              <Text style={styles.listCaption}>Popular clubs. Can’t see yours? Search above.</Text>
+            )}
+
             {teams.length > 0 && (
               <View style={styles.teamsSection}>
                 {teams.map((team) => {
                   const isSelected = selectedTeam?.id === team.id;
+                  const subtitle = teamSubtitle(team);
                   return (
                     <Pressable
                       key={team.id}
@@ -139,7 +174,10 @@ export default function TeamSelectionScreen() {
                         <View style={styles.teamLogoContainer}>
                           <Text style={styles.teamLogoPlaceholder}>⚽</Text>
                         </View>
-                        <Text style={styles.teamName}>{team.name}</Text>
+                        <View style={styles.teamText}>
+                          <Text style={styles.teamName}>{team.name}</Text>
+                          {!!subtitle && <Text style={styles.teamMeta}>{subtitle}</Text>}
+                        </View>
                       </View>
                       {isSelected ? (
                         <View style={styles.selectedIndicator}>
@@ -157,7 +195,7 @@ export default function TeamSelectionScreen() {
               </View>
             )}
 
-            {!loading && teams.length === 0 && query.trim().length > 0 && (
+            {!loading && teams.length === 0 && searching && (
               <View style={styles.centerContainer}>
                 <Text style={styles.emptyText}>Can’t find your team? Try searching by city or nickname.</Text>
               </View>
@@ -216,6 +254,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, color: colors.text, fontFamily: fonts.body },
   centerContainer: { paddingVertical: 32, alignItems: "center" },
   errorText: { color: colors.danger, fontSize: 14, textAlign: "center", marginTop: 16, fontFamily: fonts.body },
+  listCaption: { fontSize: 13, color: colors.textDim, marginTop: 18, fontFamily: fonts.body },
   teamsSection: { gap: 9, marginTop: 16 },
   teamCard: {
     flexDirection: "row",
@@ -238,7 +277,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   teamLogoPlaceholder: { fontSize: 20 },
-  teamName: { flex: 1, fontSize: 16, fontFamily: fonts.bodyMedium, color: colors.text },
+  teamText: { flex: 1 },
+  teamName: { fontSize: 16, fontFamily: fonts.bodyMedium, color: colors.text },
+  teamMeta: { fontSize: 12, fontFamily: fonts.body, color: colors.textMuted, marginTop: 2 },
   selectedIndicator: { flexDirection: "row", alignItems: "center", gap: 8 },
   primaryBadge: { backgroundColor: colors.accent, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   primaryBadgeText: { fontSize: 10, fontFamily: fonts.heading, color: colors.accentText, textTransform: "uppercase" },

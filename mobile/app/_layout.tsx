@@ -2,8 +2,8 @@
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, ActivityIndicator, Text, Pressable, StyleSheet } from 'react-native';
 import 'react-native-reanimated';
 import {
   useFonts,
@@ -38,7 +38,8 @@ const navTheme = {
 };
 
 function Gate() {
-  const { isBootstrapping, isSignedIn, isOnboarded, consentPending } = useAuth();
+  const { isBootstrapping, isSignedIn, isOnboarded, consentPending, refreshAuthState, signOut } = useAuth();
+  const [retrying, setRetrying] = useState(false);
   const segments = useSegments();
   const router = useRouter();
 
@@ -94,6 +95,37 @@ function Gate() {
     );
   }
 
+  // Signed in but the API never answered: offer a retry (and a way out) rather than a
+  // blank screen or a wrong turn into onboarding.
+  if (isSignedIn && isOnboarded === null) {
+    return (
+      <ThemeProvider value={navTheme}>
+        <View style={gateStyles.wrap}>
+          <Text style={gateStyles.title}>Can’t reach Fwitter</Text>
+          <Text style={gateStyles.body}>Check your connection, then try again.</Text>
+          <Pressable
+            style={[gateStyles.button, retrying && { opacity: 0.6 }]}
+            disabled={retrying}
+            onPress={async () => {
+              setRetrying(true);
+              try {
+                await refreshAuthState();
+              } finally {
+                setRetrying(false);
+              }
+            }}
+          >
+            {retrying ? <ActivityIndicator color={colors.accentText} /> : <Text style={gateStyles.buttonText}>Try again</Text>}
+          </Pressable>
+          <Pressable onPress={signOut} hitSlop={8}>
+            <Text style={gateStyles.link}>Sign out</Text>
+          </Pressable>
+        </View>
+        <StatusBar style="light" />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider value={navTheme}>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -117,6 +149,15 @@ function Gate() {
     </ThemeProvider>
   );
 }
+
+const gateStyles = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  title: { fontFamily: 'RobotoCondensed_900Black', fontSize: 26, color: colors.text, textTransform: 'uppercase' },
+  body: { fontFamily: 'Roboto_400Regular', fontSize: 15, color: colors.textMuted, textAlign: 'center', marginBottom: 8 },
+  button: { height: 50, minWidth: 180, paddingHorizontal: 24, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontFamily: 'RobotoCondensed_700Bold', fontSize: 16, color: colors.accentText, textTransform: 'uppercase', letterSpacing: 0.3 },
+  link: { fontFamily: 'Roboto_500Medium', fontSize: 14, color: colors.textDim, marginTop: 6 },
+});
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({

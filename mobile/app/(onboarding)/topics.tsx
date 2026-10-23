@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -23,8 +23,8 @@ export default function TopicsScreen() {
   const router = useRouter();
   const { refreshAuthState } = useAuth();
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [topics, setTopics] = useState<Topic[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [selectedTopicIds, setSelectedTopicIds] = useState<Set<string>>(new Set());
   const [selectedTopicsMap, setSelectedTopicsMap] = useState<Map<string, Topic>>(new Map());
   const [error, setError] = useState<string | null>(null);
@@ -47,24 +47,24 @@ export default function TopicsScreen() {
     })();
   }, []);
 
-  const searchTopics = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setTopics([]);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      // Public endpoint; the user is not signed in yet during onboarding.
-      const data = await apiFetch(`/topics/search?q=${encodeURIComponent(searchQuery)}`, { auth: false });
-      setTopics(data.topics ?? []);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to search topics");
-    } finally {
-      setLoading(false);
-    }
+  // The whole list is loaded once (an empty query returns every topic; there are far
+  // fewer than the API's cap of 25) and the search box filters it locally.
+  useEffect(() => {
+    (async () => {
+      try {
+        // Public endpoint; the user is not signed in yet during onboarding.
+        const data = await apiFetch("/topics/search?q=", { auth: false });
+        setAllTopics(data.topics ?? []);
+      } catch (e: any) {
+        setError(e?.message ?? "Failed to load topics");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
+
+  const needle = query.trim().toLowerCase();
+  const topics = needle ? allTopics.filter((t) => t.name.toLowerCase().includes(needle)) : allTopics;
 
   const handleContinue = async () => {
     const topicIds = Array.from(selectedTopicIds);
@@ -221,10 +221,7 @@ export default function TopicsScreen() {
                 placeholder="Search topics (e.g. VAR, Transfer News)"
                 placeholderTextColor={colors.placeholder}
                 value={query}
-                onChangeText={(text) => {
-                  setQuery(text);
-                  searchTopics(text);
-                }}
+                onChangeText={setQuery}
                 autoCapitalize="none"
               />
             </View>

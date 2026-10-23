@@ -12,6 +12,13 @@ export async function searchTeams(q: string = ""): Promise<Team[]> {
   return data?.teams ?? [];
 }
 
+// The viewer's own clubs first, then the rest of the leagues they are in. Empty when
+// they have no clubs yet.
+export async function suggestedTeams(): Promise<Team[]> {
+  const data = await apiFetch("/teams/suggested", { auth: true });
+  return data?.teams ?? [];
+}
+
 export async function searchTopics(q: string = ""): Promise<Topic[]> {
   const data = await apiFetch(`/topics/search?q=${encodeURIComponent(q)}`, { auth: true });
   return data?.topics ?? [];

@@ -4,6 +4,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from './post-shape';
+import { extractHashtags, extractMentions } from './content-entities';
 
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
@@ -114,6 +115,16 @@ export class PostsController {
       if (found !== topicIds.length) throw new BadRequestException('one_or_more_topics_not_found');
     }
 
+    // @mentions that match a real username (case-insensitive) are stored; the rest stay plain text.
+    const mentionNames = extractMentions(content);
+    const mentioned = mentionNames.length
+      ? await this.prisma.users.findMany({
+          where: { OR: mentionNames.map((name) => ({ username: { equals: name, mode: 'insensitive' as const } })) },
+          select: { id: true },
+        })
+      : [];
+    const hashtags = extractHashtags(content);
+
     const created = await this.prisma.$transaction(async (tx) => {
       const post = await tx.posts.create({
         data: {
@@ -134,6 +145,21 @@ export class PostsController {
       if (topicIds.length) {
         await tx.post_topics.createMany({
           data: topicIds.map((topicId) => ({ post_id: post.id, topic_id: topicId })),
+        });
+      }
+
+      if (mentioned.length) {
+        await tx.post_mentions.createMany({
+          data: mentioned.map((u) => ({ post_id: post.id, user_id: u.id })),
+        });
+      }
+
+      if (hashtags.length) {
+        // Tags are shared rows: create any new ones, then link all of them.
+        await tx.hashtags.createMany({ data: hashtags.map((tag) => ({ tag })), skipDuplicates: true });
+        const rows = await tx.hashtags.findMany({ where: { tag: { in: hashtags } }, select: { id: true } });
+        await tx.post_hashtags.createMany({
+          data: rows.map((h) => ({ post_id: post.id, hashtag_id: h.id })),
         });
       }
 

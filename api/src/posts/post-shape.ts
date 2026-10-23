@@ -24,6 +24,7 @@ function basePostSelect(viewerId: string) {
     post_topics: { select: { topics: { select: { id: true, name: true } } } },
     post_mentions: { select: { users: { select: { id: true, username: true } } } },
     post_hashtags: { select: { hashtags: { select: { tag: true } } } },
+    matches: { select: { id: true, home_name: true, away_name: true } },
     post_likes: { where: { user_id: viewerId }, select: { user_id: true } },
     bookmarks: { where: { user_id: viewerId }, select: { user_id: true } },
     // The viewer's own plain repost of this post, if any.
@@ -86,13 +87,15 @@ type RawQuoting = Prisma.postsGetPayload<{ select: ReturnType<typeof quotingPost
 type RawFeed = Prisma.postsGetPayload<{ select: ReturnType<typeof feedPostSelect> }>;
 
 function toBasePost(row: RawBase, viewerId: string) {
-  const { post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, like_count, repost_count, ...rest } = row;
+  const { post_likes, bookmarks, reposts, post_mentions, post_hashtags, polls, matches, like_count, repost_count, ...rest } =
+    row;
   const isAuthor = row.author_id === viewerId;
   return {
     ...rest,
     // Resolved entities, so the client only links @names and #tags that exist.
     mentions: post_mentions.map((m) => m.users),
     hashtags: post_hashtags.map((h) => h.hashtags.tag),
+    match: matches,
     poll: polls ? toPoll(polls, isAuthor) : null,
     // Counters live on the row (maintained with the writes); counts stay author-only.
     like_count: isAuthor ? like_count : null,

@@ -92,6 +92,15 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
 
           {shown.quoted_post && <QuotedPost post={shown.quoted_post} />}
 
+          {shown.match && (
+            <Pressable style={styles.matchChip} onPress={() => router.push(`/matches/${shown.match!.id}`)} hitSlop={4}>
+              <Ionicons name="football" size={13} color={colors.accent} />
+              <Text style={styles.matchChipText} numberOfLines={1}>
+                {shown.match.home_name} v {shown.match.away_name}
+              </Text>
+            </Pressable>
+          )}
+
           {(teams.length > 0 || topics.length > 0) && (
             <View style={styles.postTags}>
               {teams.length > 0 && (
@@ -302,6 +311,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 14,
     lineHeight: 20,
+    color: colors.textBody,
+  },
+  matchChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface3,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  matchChipText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
     color: colors.textBody,
   },
   postTags: {

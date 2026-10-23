@@ -43,7 +43,9 @@ export class MediaService {
     private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
-    this.region = config.get<string>('AWS_REGION') ?? 'eu-north-1';
+    // Rekognition has no endpoint in eu-north-1 (the Cognito region) and can only read
+    // objects from a bucket in its own region, so media gets a region of its own.
+    this.region = config.get<string>('MEDIA_AWS_REGION') ?? config.get<string>('AWS_REGION') ?? 'eu-north-1';
     this.bucket = config.get<string>('S3_BUCKET') ?? '';
     this.blocked = new Set(
       (config.get<string>('REKOGNITION_BLOCK') ?? DEFAULT_BLOCK.join(','))

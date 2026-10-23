@@ -9,12 +9,14 @@ import { UpdateTeamsDto } from './dto/update-teams.dto';
 import { UpdateTopicsDto } from './dto/update-topics.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 @Controller('users')
 export class UsersController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
+    private readonly moderation: ModerationService,
   ) {}
 
   @Get('me')
@@ -54,6 +56,7 @@ export class UsersController {
     @CurrentUser() user: { sub: string },
     @Body() dto: UpdateProfileDto,
   ) {
+    await this.moderation.assertContentAllowed(dto.username, dto.bio);
     const dbUser = await this.prisma.users.findUnique({
       where: { cognito_sub: user.sub },
       select: { id: true },
@@ -106,6 +109,7 @@ export class UsersController {
     });
 
     if (existing) return { user: existing };
+    await this.moderation.assertContentAllowed(dto.username, dto.displayName);
 
     try {
       // Age tier is derived server-side from DOB — the client-sent value is ignored.
@@ -262,6 +266,7 @@ export class UsersController {
       where: {
         user_id: dbUser.id,
         ...(savedBefore ? { created_at: { lt: savedBefore } } : {}),
+        posts: await this.moderation.visibility(dbUser.id),
       },
       orderBy: { created_at: 'desc' },
       take,
@@ -295,6 +300,7 @@ export class UsersController {
         author_id: targetUserId,
         parent_post_id: null,
         ...(createdBefore ? { created_at: { lt: createdBefore } } : {}),
+        ...(await this.moderation.visibility(viewer.id)),
       },
       orderBy: { created_at: 'desc' },
       take,
@@ -325,6 +331,35 @@ export class UsersController {
     const viewerId = await this.usersService.getUserIdFromCognitoSub(viewer.sub);
     const result = await this.usersService.unfollowUser(viewerId, targetUserId);
     return result;
+  }
+
+  @Post(':id/block')
+  @UseGuards(JwtAuthGuard)
+  async blockUser(@CurrentUser() viewer: { sub: string }, @Param('id') targetUserId: string) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(viewer.sub);
+    return this.moderation.block(viewerId, targetUserId);
+  }
+
+  @Delete(':id/block')
+  @UseGuards(JwtAuthGuard)
+  async unblockUser(@CurrentUser() viewer: { sub: string }, @Param('id') targetUserId: string) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(viewer.sub);
+    return this.moderation.unblock(viewerId, targetUserId);
+  }
+
+  // Immediate, irreversible. Everything the user owns cascades with the row: posts and
+  // their replies, likes, reposts, bookmarks, follows, votes, notifications, push tokens,
+  // reports and blocks. The client deletes the Cognito user afterwards.
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  async deleteMyAccount(@CurrentUser() user: { sub: string }) {
+    const dbUser = await this.prisma.users.findUnique({
+      where: { cognito_sub: user.sub },
+      select: { id: true },
+    });
+    if (!dbUser) throw new NotFoundException('profile_not_found');
+    await this.prisma.users.delete({ where: { id: dbUser.id } });
+    return { ok: true };
   }
 
   @Get(':id/followers')

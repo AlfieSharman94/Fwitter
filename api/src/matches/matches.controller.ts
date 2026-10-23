@@ -4,6 +4,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from '../posts/post-shape';
 import { FixturesSyncService } from './fixtures-sync.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 const DAY_MS = 86_400_000;
 
@@ -31,6 +32,7 @@ export class MatchesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sync: FixturesSyncService,
+    private readonly moderation: ModerationService,
   ) {}
 
   private async requireViewer(sub: string) {
@@ -108,6 +110,7 @@ export class MatchesController {
         match_id: id,
         parent_post_id: null,
         ...(createdBefore ? { created_at: { lt: createdBefore } } : {}),
+        ...(await this.moderation.visibility(viewer.id)),
       },
       orderBy: { created_at: 'desc' },
       take,

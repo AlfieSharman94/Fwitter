@@ -19,11 +19,23 @@ import { apiFetch } from "../../src/api/client";
 import { PostCard } from "../../src/components/PostCard";
 import type { FeedPost } from "../../src/feed/feedTypes";
 import { patchPostList, type PatchPost } from "../../src/feed/engagement";
+import { onPostRemoved, useFeedEvents } from "../../src/feed/optimisticFeed";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 const MAX_LENGTH = 500;
 
 type Parent = { id: string; username: string } | null;
+
+export function friendlyPostError(e: any, fallback: string) {
+  switch (e?.message) {
+    case "content_not_allowed":
+      return "That contains language we don’t allow on Fwitter.";
+    case "blocked":
+      return "You can’t interact with this account.";
+    default:
+      return e?.message ?? fallback;
+  }
+}
 
 export default function PostDetailScreen() {
   const router = useRouter();
@@ -43,6 +55,10 @@ export default function PostDetailScreen() {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  useFeedEvents(setReplies);
+  // If the post itself is deleted from its own menu, there's nothing left to show.
+  useEffect(() => onPostRemoved((removedId) => { if (removedId === id) router.back(); }), [id, router]);
 
   const loadPost = useCallback(async () => {
     if (!id) return;
@@ -117,7 +133,7 @@ export default function PostDetailScreen() {
       setPost((prev) => (prev ? { ...prev, reply_count: prev.reply_count + 1 } : prev));
       setReply("");
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to post reply");
+      Alert.alert("Error", friendlyPostError(e, "Failed to post reply"));
     } finally {
       setSending(false);
     }

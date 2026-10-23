@@ -7,6 +7,7 @@ import { apiFetch } from "../../src/api/client";
 import { PostCard } from "../../src/components/PostCard";
 import type { FeedPost } from "../../src/feed/feedTypes";
 import { patchPostList, type PatchPost } from "../../src/feed/engagement";
+import { useFeedEvents } from "../../src/feed/optimisticFeed";
 import { hasScore, isLive, kickoffTime, statusLabel, type Match } from "../../src/matches/matchTypes";
 import { Crest } from "./index";
 import { colors, fonts, radii } from "../../src/theme/theme";
@@ -24,6 +25,7 @@ export default function MatchScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useFeedEvents(setPosts);
 
   const loadMatch = useCallback(async () => {
     if (!id) return;

@@ -5,6 +5,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from '../posts/post-shape';
 import { Candidate, decodeCursor, rankPage } from './ranking';
+import { ModerationService } from '../moderation/moderation.service';
 
 // "For you" scores posts from the last week. If the community has been quiet the
 // window widens to a month, then to everything, rather than showing nothing.
@@ -35,7 +36,10 @@ type CandidateRow = Prisma.postsGetPayload<{ select: typeof candidateSelect }>;
 @Controller('feed')
 @UseGuards(JwtAuthGuard)
 export class FeedController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly moderation: ModerationService,
+  ) {}
 
   private parseLimit(limit?: string) {
     const n = Number(limit ?? 20);
@@ -103,6 +107,7 @@ export class FeedController {
         author_id: { in: authorIds },
         parent_post_id: null,
         ...(createdBefore ? { created_at: { lt: createdBefore } } : {}),
+        ...(await this.moderation.visibility(dbUser.id)),
       },
       orderBy: { created_at: 'desc' },
       take,
@@ -140,6 +145,7 @@ export class FeedController {
         repost_of_id: null,
         ...(interest ?? {}),
         ...(createdBefore ? { created_at: { lt: createdBefore } } : {}),
+        ...(await this.moderation.visibility(ctx.id)),
       },
       orderBy: { created_at: 'desc' },
       take,
@@ -161,12 +167,14 @@ export class FeedController {
     take: number,
   ): Promise<CandidateRow[]> {
     const since = new Date(asOf.getTime() - windowDays * 86_400_000);
-    // Own posts are left to Squad; For you is for finding other people's.
+    // Own posts are left to Squad; For you is for finding other people's. Blocked
+    // authors and hidden posts never become candidates.
     const base = {
       parent_post_id: null,
       repost_of_id: null,
       author_id: { not: ctx.id },
       created_at: { gt: since, lte: asOf },
+      ...(await this.moderation.visibility(ctx.id)),
     };
 
     const rows = await this.prisma.posts.findMany({

@@ -3,11 +3,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from '../posts/post-shape';
+import { ModerationService } from '../moderation/moderation.service';
 
 @Controller('hashtags')
 @UseGuards(JwtAuthGuard)
 export class HashtagsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly moderation: ModerationService,
+  ) {}
 
   // Most-used tags over the last 24 hours (last 7 days if the day is quiet).
   @Get('trending')
@@ -64,6 +68,7 @@ export class HashtagsController {
       where: {
         post_hashtags: { some: { hashtags: { tag } } },
         ...(createdBefore ? { created_at: { lt: createdBefore } } : {}),
+        ...(await this.moderation.visibility(viewer.id)),
       },
       orderBy: { created_at: 'desc' },
       take,

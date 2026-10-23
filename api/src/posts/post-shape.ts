@@ -16,6 +16,7 @@ function basePostSelect(viewerId: string) {
     author_id: true,
     parent_post_id: true,
     quoted_post_id: true,
+    hidden_at: true,
     like_count: true,
     reply_count: true,
     repost_count: true,

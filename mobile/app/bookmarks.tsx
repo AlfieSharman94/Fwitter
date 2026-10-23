@@ -7,6 +7,7 @@ import { apiFetch } from "../src/api/client";
 import { PostCard } from "../src/components/PostCard";
 import type { FeedPost } from "../src/feed/feedTypes";
 import { patchPostList, type PatchPost } from "../src/feed/engagement";
+import { useFeedEvents } from "../src/feed/optimisticFeed";
 import { colors, fonts, radii } from "../src/theme/theme";
 
 export default function BookmarksScreen() {
@@ -17,6 +18,7 @@ export default function BookmarksScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useFeedEvents(setPosts);
 
   const load = useCallback(async (cursor: string | null = null) => {
     if (cursor) setLoadingMore(true);

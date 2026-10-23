@@ -7,7 +7,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import type { FeedPost } from "../../src/feed/feedTypes";
 import { PostCard } from "../../src/components/PostCard";
+import { ReportSheet, type ReportTarget } from "../../src/components/ReportSheet";
 import { patchPostList, type PatchPost } from "../../src/feed/engagement";
+import { publishAuthorBlocked, useFeedEvents } from "../../src/feed/optimisticFeed";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 type UserProfile = {
@@ -21,6 +23,8 @@ type UserProfile = {
   postsCount: number;
   isFollowing: boolean;
   isSelf: boolean;
+  isBlocked: boolean;
+  hasBlockedMe: boolean;
 };
 
 export default function UserProfileScreen() {
@@ -36,6 +40,8 @@ export default function UserProfileScreen() {
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  useFeedEvents(setPosts);
 
   const loadProfile = useCallback(async () => {
     if (!userId) {
@@ -161,13 +167,55 @@ export default function UserProfileScreen() {
     ]);
   };
 
+  const toggleBlock = async () => {
+    if (!profile) return;
+    try {
+      const res = await apiFetch(`/users/${profile.id}/block`, { method: profile.isBlocked ? "DELETE" : "POST" });
+      if (res.blocked) publishAuthorBlocked(profile.id);
+      setProfile((prev) => (prev ? { ...prev, isBlocked: res.blocked, isFollowing: false } : prev));
+      setPosts([]);
+      if (!res.blocked) loadPosts();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to update block");
+    }
+  };
+
+  const handleMenu = () => {
+    if (!profile || profile.isSelf) return;
+    Alert.alert(`@${profile.username}`, undefined, [
+      { text: "Report user", onPress: () => setReportTarget({ userId: profile.id, label: `@${profile.username}` }) },
+      profile.isBlocked
+        ? { text: "Unblock", onPress: toggleBlock }
+        : {
+            text: "Block",
+            style: "destructive",
+            onPress: () =>
+              Alert.alert(
+                `Block @${profile.username}?`,
+                "You won’t see each other’s posts, and any follows between you are removed.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Block", style: "destructive", onPress: toggleBlock },
+                ]
+              ),
+          },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <Pressable style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="chevron-back" size={22} color={colors.text} />
       </Pressable>
       <Text style={styles.headerTitle}>Profile</Text>
-      <View style={{ width: 40 }} />
+      {profile && !profile.isSelf ? (
+        <Pressable style={styles.backButton} onPress={handleMenu}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+        </Pressable>
+      ) : (
+        <View style={{ width: 40 }} />
+      )}
     </View>
   );
 
@@ -213,7 +261,15 @@ export default function UserProfileScreen() {
           <Text style={styles.displayName}>{profile.displayName}</Text>
           <Text style={styles.username}>@{profile.username}</Text>
 
-          {!profile.isSelf && (
+          {!profile.isSelf && profile.isBlocked && (
+            <Pressable style={[styles.followButton, styles.followingButton]} onPress={toggleBlock}>
+              <Text style={[styles.followButtonText, styles.followingButtonText]}>Unblock</Text>
+            </Pressable>
+          )}
+          {!profile.isSelf && !profile.isBlocked && profile.hasBlockedMe && (
+            <Text style={styles.blockedNote}>You can’t follow or see posts from this account.</Text>
+          )}
+          {!profile.isSelf && !profile.isBlocked && !profile.hasBlockedMe && (
             <Pressable
               style={[
                 styles.followButton,
@@ -254,7 +310,11 @@ export default function UserProfileScreen() {
         {/* Posts */}
         <View style={styles.postsSection}>
           <Text style={styles.postsHeader}>Posts</Text>
-          {postsLoading ? (
+          {profile.isBlocked || profile.hasBlockedMe ? (
+            <Text style={styles.postsEmpty}>
+              {profile.isBlocked ? `You’ve blocked @${profile.username}.` : "Posts are hidden."}
+            </Text>
+          ) : postsLoading ? (
             <ActivityIndicator style={{ marginTop: 24 }} color={colors.accent} />
           ) : posts.length === 0 ? (
             <Text style={styles.postsEmpty}>
@@ -272,6 +332,7 @@ export default function UserProfileScreen() {
           )}
         </View>
       </ScrollView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
     </SafeAreaView>
   );
 }
@@ -397,6 +458,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     fontFamily: fonts.body,
+  },
+  blockedNote: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textDim,
+    textAlign: "center",
   },
   statsSection: {
     flexDirection: "row",

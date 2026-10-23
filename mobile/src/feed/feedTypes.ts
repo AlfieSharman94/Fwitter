@@ -25,6 +25,7 @@ export type FeedPostBase = {
   match: { id: string; home_name: string; away_name: string } | null;
   // Only ever non-null on the viewer's own posts: hidden posts aren't returned to anyone else.
   hidden_at: string | null;
+  media: { id: string; url: string; width: number | null; height: number | null }[];
   reply_count: number;
   // Counts are null unless the viewer is the author: they are hidden from everyone else.
   like_count: number | null;

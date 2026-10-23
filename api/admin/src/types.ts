@@ -18,6 +18,7 @@ export type ReportRow = {
     hidden_reason: string | null;
     report_count: number;
     users: { id: string; username: string; display_name: string };
+    media: { url: string }[];
   } | null;
   user: {
     id: string;
@@ -55,7 +56,7 @@ export type UserDetail = {
   created_at: string;
   suspended_until: string | null;
   banned_at: string | null;
-  posts: { id: string; content: string; created_at: string; hidden_at: string | null; hidden_reason: string | null; report_count: number }[];
+  posts: { id: string; content: string; created_at: string; hidden_at: string | null; hidden_reason: string | null; report_count: number; media: { url: string }[] }[];
   reports_received: { id: string; reason: string; details: string | null; status: string; created_at: string; reporter: { username: string } }[];
   moderation_received: { id: string; action: string; note: string | null; created_at: string; actor: { username: string } | null }[];
 };

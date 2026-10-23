@@ -9,6 +9,7 @@ import { toggleBookmark, toggleLike, toggleRepost, type PatchPost } from "../fee
 import { publishAuthorBlocked, publishPostRemoved } from "../feed/optimisticFeed";
 import { PostText } from "./PostText";
 import { PollView } from "./PollView";
+import { MediaGrid } from "./MediaGrid";
 import { ReportSheet, type ReportTarget } from "./ReportSheet";
 import { colors, fonts, radii } from "../theme/theme";
 
@@ -159,6 +160,8 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
             style={styles.postContent}
           />
 
+          {shown.media.length > 0 && <MediaGrid media={shown.media} />}
+
           {shown.poll && <PollView post={shown} onPatch={onPatch} />}
 
           {shown.quoted_post && <QuotedPost post={shown.quoted_post} />}
@@ -243,13 +246,18 @@ export function QuotedPost({ post }: { post: FeedPostBase }) {
           @{post.users.username} · {getTimeAgo(new Date(post.created_at))}
         </Text>
       </View>
-      <PostText
-        content={post.content}
-        mentions={post.mentions}
-        hashtags={post.hashtags}
-        style={styles.quoteContent}
-        numberOfLines={6}
-      />
+      {!!post.content && (
+        <PostText
+          content={post.content}
+          mentions={post.mentions}
+          hashtags={post.hashtags}
+          style={styles.quoteContent}
+          numberOfLines={6}
+        />
+      )}
+      {post.media.length > 0 && (
+        <Image source={{ uri: post.media[0].url }} style={styles.quoteImage} resizeMode="cover" />
+      )}
     </Pressable>
   );
 }
@@ -400,6 +408,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.textBody,
+  },
+  quoteImage: {
+    width: "100%",
+    height: 140,
+    borderRadius: radii.sm,
+    marginTop: 6,
+    backgroundColor: colors.surface3,
   },
   matchChip: {
     flexDirection: "row",

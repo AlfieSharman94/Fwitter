@@ -4,6 +4,7 @@ import { api, askNote, fmt } from '../api';
 import type { Me, ReportRow } from '../types';
 import { userStatus } from '../types';
 import { UserActions } from './UserDetail';
+import { Media } from '../Media';
 
 type Status = 'OPEN' | 'RESOLVED' | 'DISMISSED' | 'ALL';
 type Group = { key: string; post: ReportRow['post']; user: ReportRow['user']; reports: ReportRow[] };
@@ -100,6 +101,7 @@ export default function Reports({ me }: { me: Me }) {
                   </div>
                 </div>
                 <div className="content">{g.post.content}</div>
+                <Media media={g.post.media} />
                 <Reporters reports={g.reports} />
                 {g.reports.some((r) => r.status === 'OPEN') && (
                   <div className="actions">

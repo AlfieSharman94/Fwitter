@@ -19,6 +19,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MatchesModule } from './matches/matches.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { AdminModule } from './admin/admin.module';
+import { MediaModule } from './media/media.module';
 
 const ADMIN_DIST = join(__dirname, '..', 'admin', 'dist');
 
@@ -34,6 +35,7 @@ const ADMIN_DIST = join(__dirname, '..', 'admin', 'dist');
       ? [ServeStaticModule.forRoot({ rootPath: ADMIN_DIST, serveRoot: '/moderation' })]
       : []),
     ModerationModule,
+    MediaModule,
     PrismaModule,
     AuthModule,
     UsersModule,

@@ -57,4 +57,10 @@ export class CreatePostDto {
   @ValidateNested()
   @Type(() => PollDto)
   poll?: PollDto;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(4)
+  @IsString({ each: true })
+  mediaIds?: string[];
 }

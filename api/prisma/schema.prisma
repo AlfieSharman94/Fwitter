@@ -73,6 +73,7 @@ model posts {
   polls          polls?
   notifications  notifications[]
   reports        reports[]
+  media          media[]
   matches        matches?      @relation(fields: [match_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   users          users         @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   posts          posts?        @relation("postsToposts", fields: [parent_post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -269,6 +270,36 @@ model push_tokens {
   @@index([user_id])
 }
 
+enum MediaStatus {
+  PENDING
+  READY
+  REJECTED
+}
+
+/// An uploaded image in S3. Created PENDING at presign, READY once the upload is confirmed
+/// and has passed the Rekognition scan, REJECTED (object deleted, labels kept) otherwise.
+/// Attached to a post at creation; avatars stay unattached.
+model media {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id          String      @db.Uuid
+  key               String      @unique @db.VarChar(255)
+  content_type      String      @db.VarChar(50)
+  purpose           String      @db.VarChar(20)
+  size_bytes        Int?
+  width             Int?
+  height            Int?
+  status            MediaStatus @default(PENDING)
+  moderation_labels String?
+  post_id           String?     @db.Uuid
+  position          Int?        @db.SmallInt
+  created_at        DateTime    @default(now()) @db.Timestamptz(6)
+  owner             users       @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  posts             posts?      @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([post_id, position])
+  @@index([owner_id, created_at(sort: Desc)])
+}
+
 /// Private "saved posts". Only ever read back by the user who saved them.
 model bookmarks {
   user_id    String   @db.Uuid
@@ -451,6 +482,7 @@ model users {
   reports_received                    reports[]       @relation("reports_reported")
   blocks_made                         blocks[]        @relation("blocks_blocker")
   blocks_received                     blocks[]        @relation("blocks_blocked")
+  media                               media[]
   moderation_done                     moderation_actions[] @relation("moderation_actor")
   moderation_received                 moderation_actions[] @relation("moderation_target")
   user_teams                          user_teams[]

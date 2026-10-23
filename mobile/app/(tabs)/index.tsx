@@ -12,10 +12,13 @@ import { onNewPost } from "../../src/feed/optimisticFeed";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
 type FeedType = "12th-man" | "squad";
+type FeedSort = "ranked" | "latest";
 
 export default function HomeScreen() {
   const router = useRouter();
   const [feedType, setFeedType] = useState<FeedType>("12th-man");
+  // 12th Man only: "For you" (ranked) or "Latest" (chronological).
+  const [sort, setSort] = useState<FeedSort>("ranked");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,10 +44,8 @@ export default function HomeScreen() {
           setLoadingMore(true);
         }
 
-        const endpoint = feedType === "12th-man" ? "/feed/12th-man" : "/feed/squad";
-        const url = cursor
-          ? `${endpoint}?limit=20&cursor=${encodeURIComponent(cursor)}`
-          : `${endpoint}?limit=20`;
+        const endpoint = feedType === "12th-man" ? `/feed/12th-man?limit=20&sort=${sort}` : "/feed/squad?limit=20";
+        const url = cursor ? `${endpoint}&cursor=${encodeURIComponent(cursor)}` : endpoint;
 
         const data = await apiFetch(url);
 
@@ -76,7 +77,7 @@ export default function HomeScreen() {
         }
       }
     },
-    [feedType]
+    [feedType, sort]
   );
 
   // Instantly show the current user's own new post (published by the composer)
@@ -121,6 +122,13 @@ export default function HomeScreen() {
     setNextCursor(null);
   };
 
+  const handleSortChange = (next: FeedSort) => {
+    if (next === sort) return;
+    setSort(next);
+    setPosts([]);
+    setNextCursor(null);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
@@ -151,6 +159,22 @@ export default function HomeScreen() {
           <Text style={[styles.toggleText, feedType === "12th-man" && styles.toggleTextActive]}>12th Man</Text>
         </Pressable>
       </View>
+
+      {feedType === "12th-man" && (
+        <View style={styles.sortRow}>
+          {(["ranked", "latest"] as const).map((s) => (
+            <Pressable
+              key={s}
+              onPress={() => handleSortChange(s)}
+              style={[styles.sortChip, sort === s && styles.sortChipActive]}
+            >
+              <Text style={[styles.sortChipText, sort === s && styles.sortChipTextActive]}>
+                {s === "ranked" ? "For you" : "Latest"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* Feed Content */}
       {loading && posts.length === 0 ? (
@@ -279,6 +303,32 @@ const styles = StyleSheet.create({
   },
   toggleTextActive: {
     color: colors.text,
+  },
+  sortRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  sortChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface3,
+  },
+  sortChipActive: {
+    backgroundColor: colors.accent,
+  },
+  sortChipText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  sortChipTextActive: {
+    color: colors.accentText,
+    fontFamily: fonts.bodyBold,
   },
   centerContainer: {
     flex: 1,

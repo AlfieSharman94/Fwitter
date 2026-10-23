@@ -197,6 +197,14 @@ export class PostsController {
         });
       }
 
+      // Engagement counters on the post being replied to / quoted.
+      if (parent) {
+        await tx.posts.update({ where: { id: parent.id }, data: { reply_count: { increment: 1 } } });
+      }
+      if (quotedTarget) {
+        await tx.posts.update({ where: { id: quotedTarget.id }, data: { quote_count: { increment: 1 } } });
+      }
+
       // Re-read with the tags attached so the response matches what the feeds return.
       return tx.posts.findUniqueOrThrow({ where: { id: post.id }, select: feedPostSelect(dbUser.id) });
     });
@@ -271,9 +279,13 @@ export class PostsController {
   async like(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
     const post = await this.requireOriginal(id);
-    await this.prisma.post_likes.createMany({
-      data: [{ post_id: post.id, user_id: viewer.id }],
-      skipDuplicates: true, // liking twice is a no-op, not an error
+    // The counter only moves when a row was actually written (double-tap safe).
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.post_likes.createMany({
+        data: [{ post_id: post.id, user_id: viewer.id }],
+        skipDuplicates: true, // liking twice is a no-op, not an error
+      });
+      if (count > 0) await tx.posts.update({ where: { id: post.id }, data: { like_count: { increment: 1 } } });
     });
     void this.notifications.notify({ recipientId: post.author_id, actorId: viewer.id, type: 'LIKE', postId: post.id });
     return this.likeState(post, viewer.id);
@@ -283,7 +295,10 @@ export class PostsController {
   async unlike(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
     const post = await this.requireOriginal(id);
-    await this.prisma.post_likes.deleteMany({ where: { post_id: post.id, user_id: viewer.id } });
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.post_likes.deleteMany({ where: { post_id: post.id, user_id: viewer.id } });
+      if (count > 0) await tx.posts.update({ where: { id: post.id }, data: { like_count: { decrement: 1 } } });
+    });
     void this.notifications.remove({ recipientId: post.author_id, actorId: viewer.id, type: 'LIKE', postId: post.id });
     return this.likeState(post, viewer.id);
   }
@@ -343,9 +358,12 @@ export class PostsController {
     const post = await this.requireOriginal(id);
     // A plain repost is its own posts row with no content. (author_id, repost_of_id)
     // is unique, so reposting twice is a no-op.
-    await this.prisma.posts.createMany({
-      data: [{ author_id: viewer.id, content: '', repost_of_id: post.id }],
-      skipDuplicates: true,
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.posts.createMany({
+        data: [{ author_id: viewer.id, content: '', repost_of_id: post.id }],
+        skipDuplicates: true,
+      });
+      if (count > 0) await tx.posts.update({ where: { id: post.id }, data: { repost_count: { increment: 1 } } });
     });
     void this.notifications.notify({ recipientId: post.author_id, actorId: viewer.id, type: 'REPOST', postId: post.id });
     return this.repostState(post, viewer.id);
@@ -355,7 +373,10 @@ export class PostsController {
   async unrepost(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
     const post = await this.requireOriginal(id);
-    await this.prisma.posts.deleteMany({ where: { author_id: viewer.id, repost_of_id: post.id } });
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.posts.deleteMany({ where: { author_id: viewer.id, repost_of_id: post.id } });
+      if (count > 0) await tx.posts.update({ where: { id: post.id }, data: { repost_count: { decrement: 1 } } });
+    });
     void this.notifications.remove({ recipientId: post.author_id, actorId: viewer.id, type: 'REPOST', postId: post.id });
     return this.repostState(post, viewer.id);
   }
@@ -366,15 +387,42 @@ export class PostsController {
 
     const post = await this.prisma.posts.findUnique({
       where: { id },
-      select: { author_id: true, repost_of_id: true, repost_of: { select: { author_id: true } } },
+      select: {
+        author_id: true,
+        parent_post_id: true,
+        quoted_post_id: true,
+        repost_of_id: true,
+        repost_of: { select: { author_id: true } },
+      },
     });
     if (!post) throw new NotFoundException('post_not_found');
     if (post.author_id !== dbUser.id) throw new ForbiddenException('not_your_post');
 
     // Hard delete. Tags, likes, bookmarks, replies, plain reposts of this post and
     // notifications about it cascade via FK onDelete; quote posts keep their own
-    // content and lose the embed (SetNull).
-    await this.prisma.posts.delete({ where: { id } });
+    // content and lose the embed (SetNull). Counters on the posts this one pointed
+    // at come down in the same transaction.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.posts.delete({ where: { id } });
+      if (post.parent_post_id) {
+        await tx.posts.updateMany({
+          where: { id: post.parent_post_id, reply_count: { gt: 0 } },
+          data: { reply_count: { decrement: 1 } },
+        });
+      }
+      if (post.quoted_post_id) {
+        await tx.posts.updateMany({
+          where: { id: post.quoted_post_id, quote_count: { gt: 0 } },
+          data: { quote_count: { decrement: 1 } },
+        });
+      }
+      if (post.repost_of_id) {
+        await tx.posts.updateMany({
+          where: { id: post.repost_of_id, repost_count: { gt: 0 } },
+          data: { repost_count: { decrement: 1 } },
+        });
+      }
+    });
 
     // Deleting a repost row from your profile is an undo: drop the author's notification.
     if (post.repost_of_id && post.repost_of) {

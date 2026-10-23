@@ -48,6 +48,11 @@ model posts {
   repost_of_id   String?       @db.Uuid
   /// Quote post: own content plus an embedded original. Nulled if the original is deleted (the quote then shows as a plain post).
   quoted_post_id String?       @db.Uuid
+  /// Engagement counters, maintained in the same transactions as the rows they count. Used by ranking and the post shape.
+  like_count     Int           @default(0)
+  reply_count    Int           @default(0)
+  repost_count   Int           @default(0)
+  quote_count    Int           @default(0)
   created_at     DateTime      @default(now()) @db.Timestamptz(6)
   updated_at     DateTime      @default(now()) @db.Timestamptz(6)
   deleted_at     DateTime?     @db.Timestamptz(6)

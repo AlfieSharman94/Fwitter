@@ -6,6 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { ModerationService } from '../moderation/moderation.service';
 import { AdminService } from './admin.service';
+import { DmService } from '../dm/dm.service';
 import { BannedWordDto, NoteDto, SetRoleDto, SuspendDto, WarnDto } from './dto/admin.dto';
 
 // Moderators and admins only. Role checks happen in RolesGuard; a few routes are admin-only.
@@ -16,6 +17,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly moderation: ModerationService,
+    private readonly dm: DmService,
   ) {}
 
   private async actor(user: { sub: string }) {
@@ -119,6 +121,12 @@ export class AdminController {
   @Roles('ADMIN')
   async setRole(@CurrentUser() user: { sub: string }, @Param('id') id: string, @Body() dto: SetRoleDto) {
     return this.admin.setRole(await this.actor(user), id, dto.role);
+  }
+
+  // Readable only once a participant has reported it.
+  @Get('conversations/:id/messages')
+  conversation(@Param('id') id: string) {
+    return this.dm.adminMessages(id);
   }
 
   @Get('banned-words')

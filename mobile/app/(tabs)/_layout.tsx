@@ -8,19 +8,25 @@ import { colors, fonts } from '../../src/theme/theme';
 import { refreshUnread, useUnreadCount } from '../../src/notifications/unread';
 import { registerPushToken } from '../../src/notifications/push';
 import { loadMe } from '../../src/auth/me';
+import { refreshDmUnread, useDmUnread } from '../../src/dm/unread';
 
 export default function TabLayout() {
   const unread = useUnreadCount();
+  const dmUnread = useDmUnread();
 
   // The tabs only mount once signed in and onboarded, so this is where the badge
   // gets synced and this device is registered for push.
   useEffect(() => {
+    const refreshAll = () => {
+      refreshUnread();
+      refreshDmUnread();
+    };
     loadMe();
-    refreshUnread();
+    refreshAll();
     registerPushToken();
-    const interval = setInterval(refreshUnread, 60_000);
+    const interval = setInterval(refreshAll, 60_000);
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') refreshUnread();
+      if (state === 'active') refreshAll();
     });
     return () => {
       clearInterval(interval);
@@ -57,6 +63,20 @@ export default function TabLayout() {
           title: 'Activity',
           tabBarIcon: ({ color, size }) => <Ionicons name="notifications" size={size || 24} color={color} />,
           tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.accent,
+            color: colors.accentText,
+            fontFamily: fonts.bodyBold,
+            fontSize: 11,
+          },
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size || 24} color={color} />,
+          tabBarBadge: dmUnread > 0 ? (dmUnread > 99 ? '99+' : dmUnread) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.accent,
             color: colors.accentText,

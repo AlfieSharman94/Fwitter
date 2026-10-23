@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ModerationService } from '../moderation/moderation.service';
+import { DmService } from '../dm/dm.service';
 
 @Injectable()
 export class UsersService {
@@ -9,6 +10,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
+    private readonly dm: DmService,
   ) {}
 
   /**
@@ -125,6 +127,7 @@ export class UsersService {
     isBlocked: boolean;
     hasBlockedMe: boolean;
     isVerified: boolean;
+    dm: { allowed: boolean; reason: string | null };
   }> {
     const targetUser = await this.prisma.users.findUnique({
       where: { id: targetId },
@@ -170,6 +173,7 @@ export class UsersService {
     const isSelf = viewerId === targetId;
     const isBlocked = blockRows.some((b) => b.blocker_id === viewerId);
     const hasBlockedMe = blockRows.some((b) => b.blocker_id === targetId);
+    const dm = isSelf ? { allowed: false, reason: 'self' } : await this.dm.eligibility(viewerId, targetId);
 
     return {
       id: targetUser.id,
@@ -185,6 +189,7 @@ export class UsersService {
       isBlocked,
       hasBlockedMe,
       isVerified: !!targetUser.verified_at,
+      dm,
     };
   }
 

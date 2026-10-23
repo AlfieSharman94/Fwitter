@@ -10,6 +10,10 @@ export class ReportDto {
   @IsString()
   userId?: string;
 
+  @IsOptional()
+  @IsString()
+  conversationId?: string;
+
   @IsEnum(ReportReason)
   reason!: ReportReason;
 

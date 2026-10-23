@@ -101,6 +101,7 @@ function Gate() {
         <Stack.Screen name="hashtags/[tag]" />
         <Stack.Screen name="matches/index" />
         <Stack.Screen name="matches/[id]" />
+        <Stack.Screen name="dm/[id]" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="welcome-success" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

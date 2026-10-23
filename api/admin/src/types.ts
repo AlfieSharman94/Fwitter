@@ -29,6 +29,7 @@ export type ReportRow = {
     role: Role;
     verified_at: string | null;
   } | null;
+  conversation: { id: string; participants: { id: string; username: string; display_name: string }[] } | null;
 };
 
 export type UserRow = {

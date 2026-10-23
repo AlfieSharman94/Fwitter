@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
+import { VoteDto } from './dto/vote.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { feedPostSelect, toFeedPost } from './post-shape';
 import { extractHashtags, extractMentions } from './content-entities';
@@ -125,6 +126,17 @@ export class PostsController {
       : [];
     const hashtags = extractHashtags(content);
 
+    // Poll options are validated for shape by the DTO; content rules live here.
+    let pollOptions: string[] | null = null;
+    if (dto.poll) {
+      const options = dto.poll.options.map((o) => o.trim());
+      if (options.some((o) => !o)) throw new BadRequestException('poll_option_empty');
+      if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) {
+        throw new BadRequestException('poll_options_must_differ');
+      }
+      pollOptions = options;
+    }
+
     const created = await this.prisma.$transaction(async (tx) => {
       const post = await tx.posts.create({
         data: {
@@ -160,6 +172,16 @@ export class PostsController {
         const rows = await tx.hashtags.findMany({ where: { tag: { in: hashtags } }, select: { id: true } });
         await tx.post_hashtags.createMany({
           data: rows.map((h) => ({ post_id: post.id, hashtag_id: h.id })),
+        });
+      }
+
+      if (pollOptions && dto.poll) {
+        await tx.polls.create({
+          data: {
+            post_id: post.id,
+            ends_at: new Date(Date.now() + dto.poll.durationHours * 60 * 60 * 1000),
+            poll_options: { create: pollOptions.map((text, position) => ({ text, position })) },
+          },
         });
       }
 
@@ -253,6 +275,36 @@ export class PostsController {
     const post = await this.requireOriginal(id);
     await this.prisma.bookmarks.deleteMany({ where: { user_id: viewer.id, post_id: post.id } });
     return { bookmarked: false };
+  }
+
+  @Post(':id/vote')
+  async vote(@CurrentUser() user: { sub: string }, @Param('id') id: string, @Body() dto: VoteDto) {
+    const viewer = await this.requireViewer(user.sub);
+    const post = await this.requireOriginal(id);
+
+    const poll = await this.prisma.polls.findUnique({
+      where: { post_id: post.id },
+      select: { ends_at: true, poll_options: { select: { id: true } } },
+    });
+    if (!poll) throw new NotFoundException('poll_not_found');
+    if (poll.ends_at.getTime() <= Date.now()) throw new BadRequestException('poll_ended');
+    if (!poll.poll_options.some((o) => o.id === dto.optionId)) throw new BadRequestException('invalid_option');
+
+    try {
+      await this.prisma.poll_votes.create({
+        data: { poll_id: post.id, user_id: viewer.id, option_id: dto.optionId },
+      });
+    } catch (e: any) {
+      // (poll_id, user_id) is the primary key: a second vote is rejected, not changed.
+      if (e?.code === 'P2002') throw new ConflictException('already_voted');
+      throw e;
+    }
+
+    const fresh = await this.prisma.posts.findUniqueOrThrow({
+      where: { id: post.id },
+      select: feedPostSelect(viewer.id),
+    });
+    return { poll: toFeedPost(fresh, viewer.id).poll };
   }
 
   @Post(':id/repost')

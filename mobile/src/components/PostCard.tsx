@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { FeedPost, FeedPostBase, FeedPostQuoting } from "../feed/feedTypes";
 import { toggleBookmark, toggleLike, toggleRepost, type PatchPost } from "../feed/engagement";
 import { PostText } from "./PostText";
+import { PollView } from "./PollView";
 import { colors, fonts, radii } from "../theme/theme";
 
 type Props = {
@@ -86,6 +87,8 @@ export function PostCard({ post, onPatch, pressable = true, onReplyPress, onDele
             hashtags={shown.hashtags}
             style={styles.postContent}
           />
+
+          {shown.poll && <PollView post={shown} onPatch={onPatch} />}
 
           {shown.quoted_post && <QuotedPost post={shown.quoted_post} />}
 

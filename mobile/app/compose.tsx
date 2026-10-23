@@ -33,6 +33,10 @@ export default function ComposeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [quoted, setQuoted] = useState<FeedPostBase | null>(null);
 
+  const [pollEnabled, setPollEnabled] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [pollDuration, setPollDuration] = useState<24 | 72 | 168>(24);
+
   const [teamQuery, setTeamQuery] = useState("");
   const [topicQuery, setTopicQuery] = useState("");
   const [teamResults, setTeamResults] = useState<Team[]>([]);
@@ -111,7 +115,12 @@ export default function ComposeScreen() {
   const remaining = MAX_LENGTH - content.length;
   const hasTag = selectedTeams.length > 0 || selectedTopics.length > 0;
   const overLimit = content.length > MAX_LENGTH;
-  const canSubmit = content.trim().length > 0 && !overLimit && hasTag && !busy;
+  const pollTrimmed = pollOptions.map((o) => o.trim());
+  const pollValid =
+    !pollEnabled ||
+    (pollTrimmed.every((o) => o.length > 0) &&
+      new Set(pollTrimmed.map((o) => o.toLowerCase())).size === pollTrimmed.length);
+  const canSubmit = content.trim().length > 0 && !overLimit && hasTag && pollValid && !busy;
   // Counter colour: gray default -> amber at <=20 remaining -> red when over limit.
   const counterColor = remaining < 0 ? colors.danger : remaining <= 20 ? colors.warn : colors.textDim;
 
@@ -129,6 +138,10 @@ export default function ComposeScreen() {
       setError("Add at least one team or topic so your post stays on football.");
       return;
     }
+    if (!pollValid) {
+      setError("Fill in every poll option, and make them different from each other.");
+      return;
+    }
 
     setError(null);
     setBusy(true);
@@ -140,6 +153,7 @@ export default function ComposeScreen() {
           teamIds: selectedTeams.map((t) => t.id),
           topicIds: selectedTopics.map((t) => t.id),
           ...(quoted ? { quotedPostId: quoted.id } : {}),
+          ...(pollEnabled ? { poll: { options: pollTrimmed, durationHours: pollDuration } } : {}),
         }),
       });
 
@@ -194,6 +208,56 @@ export default function ComposeScreen() {
           {quoted && (
             <View style={styles.quoteWrap}>
               <QuotedPost post={quoted} />
+            </View>
+          )}
+
+          {/* Poll */}
+          <View style={styles.pollToggleRow}>
+            <Pressable onPress={() => setPollEnabled((v) => !v)} disabled={busy} style={styles.pollToggle} hitSlop={6}>
+              <Ionicons name={pollEnabled ? "close-circle-outline" : "stats-chart-outline"} size={18} color={colors.accent2} />
+              <Text style={styles.pollToggleText}>{pollEnabled ? "Remove poll" : "Add poll"}</Text>
+            </Pressable>
+          </View>
+          {pollEnabled && (
+            <View style={styles.pollSection}>
+              {pollOptions.map((option, i) => (
+                <View key={i} style={styles.pollOptionRow}>
+                  <TextInput
+                    style={styles.pollInput}
+                    placeholder={`Option ${i + 1}`}
+                    placeholderTextColor={colors.placeholder}
+                    value={option}
+                    onChangeText={(text) => setPollOptions((prev) => prev.map((o, j) => (j === i ? text : o)))}
+                    maxLength={50}
+                    editable={!busy}
+                  />
+                  {pollOptions.length > 2 && (
+                    <Pressable onPress={() => setPollOptions((prev) => prev.filter((_, j) => j !== i))} hitSlop={8}>
+                      <Ionicons name="close" size={18} color={colors.textDim} />
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+              {pollOptions.length < 4 && (
+                <Pressable onPress={() => setPollOptions((prev) => [...prev, ""])} style={styles.pollAdd} hitSlop={6}>
+                  <Ionicons name="add" size={16} color={colors.accent} />
+                  <Text style={styles.pollAddText}>Add option</Text>
+                </Pressable>
+              )}
+              <Text style={styles.pollDurationLabel}>Poll length</Text>
+              <View style={styles.resultsWrap}>
+                {([24, 72, 168] as const).map((hours) => (
+                  <Pressable
+                    key={hours}
+                    onPress={() => setPollDuration(hours)}
+                    style={[styles.resultChip, pollDuration === hours && styles.resultChipSelected]}
+                  >
+                    <Text style={[styles.resultChipText, pollDuration === hours && styles.resultChipTextSelected]}>
+                      {hours === 24 ? "1 day" : hours === 72 ? "3 days" : "7 days"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
           )}
 
@@ -334,6 +398,33 @@ const styles = StyleSheet.create({
   },
   counterRow: { paddingHorizontal: 16, paddingBottom: 8, alignItems: "flex-end" },
   quoteWrap: { paddingHorizontal: 16, paddingBottom: 12 },
+  pollToggleRow: { paddingHorizontal: 16, paddingBottom: 12 },
+  pollToggle: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
+  pollToggleText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent2 },
+  pollSection: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  pollOptionRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  pollInput: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.text,
+    fontFamily: fonts.body,
+  },
+  pollAdd: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingVertical: 2 },
+  pollAddText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent },
+  pollDurationLabel: {
+    fontFamily: fonts.heading,
+    fontSize: 13,
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
   charCount: { fontSize: 14, fontFamily: fonts.bodyMedium },
   section: {
     paddingHorizontal: 16,

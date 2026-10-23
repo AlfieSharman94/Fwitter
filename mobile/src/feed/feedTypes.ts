@@ -1,3 +1,12 @@
+// Vote counts are null until the viewer has voted, the poll has ended, or the
+// viewer is the author.
+export type Poll = {
+  ends_at: string;
+  my_option_id: string | null;
+  total_votes: number | null;
+  options: { id: string; text: string; votes: number | null }[];
+};
+
 // Shared shape of a post as returned by every post endpoint (feeds, profile
 // posts, post detail, replies, create, bookmarks). Mirrors api/src/posts/post-shape.ts.
 export type FeedPostBase = {
@@ -11,6 +20,7 @@ export type FeedPostBase = {
   // Entities resolved by the server: only these @names and #tags render as links.
   mentions: { id: string; username: string }[];
   hashtags: string[];
+  poll: Poll | null;
   reply_count: number;
   // Counts are null unless the viewer is the author: they are hidden from everyone else.
   like_count: number | null;

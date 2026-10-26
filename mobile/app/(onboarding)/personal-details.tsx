@@ -6,6 +6,8 @@ import { apiFetch } from "../../src/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts, radii } from "../../src/theme/theme";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { getSessionEmail } from "../../src/auth/auth";
 
 const ONBOARDING_DATA_KEY = "fwitter.onboarding.data";
 const MIN_AGE = 13;
@@ -42,8 +44,17 @@ function calculateAge(year: number, month: number, day: number): number {
 
 export default function PersonalDetailsScreen() {
   const router = useRouter();
+  // A signed-in account whose profile is missing or was never finished resumes here:
+  // its email comes from the session and it already has a password, so neither is asked.
+  const { isSignedIn } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  useEffect(() => {
+    if (!isSignedIn) return;
+    getSessionEmail().then((sessionEmail) => {
+      if (sessionEmail) setEmail(sessionEmail);
+    });
+  }, [isSignedIn]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   // Entered in UK dd / mm / yyyy order (three separate fields), then assembled into
@@ -66,6 +77,9 @@ export default function PersonalDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+  // "existing_login": the address has a Fwitter login (Cognito) but no profile, so the
+  // right move is to sign in, not to pick a new password.
+  const [emailReason, setEmailReason] = useState<string | null>(null);
   const [emailInvalid, setEmailInvalid] = useState(false);
 
   // Same shape as the backend's /auth/email-available check, so "not a real email yet"
@@ -110,6 +124,7 @@ export default function PersonalDetailsScreen() {
         setEmailInvalid(true);
       } else {
         setEmailAvailable(result.available);
+        setEmailReason(result.reason ?? null);
       }
     } catch (e) {
       if (seq !== emailRequestSeq.current) return;
@@ -121,11 +136,12 @@ export default function PersonalDetailsScreen() {
 
   // Debounce: only check once the user pauses typing, instead of on every keystroke.
   useEffect(() => {
+    if (isSignedIn) return; // the session's own address: nothing to check
     const timer = setTimeout(() => {
       checkEmail(email);
     }, 500);
     return () => clearTimeout(timer);
-  }, [email, checkEmail]);
+  }, [email, checkEmail, isSignedIn]);
 
   const handleContinue = async () => {
     setError(null);
@@ -146,25 +162,31 @@ export default function PersonalDetailsScreen() {
       return;
     }
 
-    if (emailAvailable === false) {
-      setError("Email is already registered");
+    if (!isSignedIn && emailAvailable === false) {
+      setError(
+        emailReason === "existing_login"
+          ? "This email already has a Fwitter login. Go back and sign in instead."
+          : "Email is already registered",
+      );
       return;
     }
 
-    if (!password.trim()) {
-      setError("Password is required");
-      return;
-    }
+    if (!isSignedIn) {
+      if (!password.trim()) {
+        setError("Password is required");
+        return;
+      }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match");
+        return;
+      }
 
-    const passwordIssues = getPasswordIssues(password);
-    if (passwordIssues.length > 0) {
-      setError(`Password needs ${passwordIssues.join(", ")}`);
-      return;
+      const passwordIssues = getPasswordIssues(password);
+      if (passwordIssues.length > 0) {
+        setError(`Password needs ${passwordIssues.join(", ")}`);
+        return;
+      }
     }
 
     if (!dateOfBirth) {
@@ -218,7 +240,7 @@ export default function PersonalDetailsScreen() {
       ...existingData,
       displayName: displayName.trim(),
       email: email.trim(),
-      password,
+      ...(isSignedIn ? {} : { password }),
       dateOfBirth: dateOfBirth.trim(),
       ageTier,
       // Explicit null for 16+, so an edited date of birth never keeps a stale address.
@@ -285,20 +307,29 @@ export default function PersonalDetailsScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
+                  editable={!isSignedIn}
                 />
                 <View style={styles.hintSlot}>
-                  {checkingEmail ? (
+                  {isSignedIn ? (
+                    <Text style={[styles.hint, { color: colors.textMuted }]}>The account you’re signed in with</Text>
+                  ) : checkingEmail ? (
                     <Text style={[styles.hint, { color: colors.accent2 }]}>Checking…</Text>
                   ) : emailInvalid ? (
                     <Text style={[styles.hint, { color: colors.danger }]}>Enter a valid email address</Text>
                   ) : emailAvailable === true ? (
                     <Text style={[styles.hint, { color: colors.accent }]}>Email available</Text>
                   ) : emailAvailable === false ? (
-                    <Text style={[styles.hint, { color: colors.danger }]}>Email already registered</Text>
+                    <Text style={[styles.hint, { color: colors.danger }]}>
+                      {emailReason === "existing_login"
+                        ? "This email already has a Fwitter login. Sign in instead."
+                        : "Email already registered"}
+                    </Text>
                   ) : null}
                 </View>
               </View>
 
+              {!isSignedIn && (
+              <>
               <View style={styles.passwordRow}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>Password</Text>
@@ -326,6 +357,8 @@ export default function PersonalDetailsScreen() {
               </View>
               {pwShort && <Text style={styles.hint}>Password needs {passwordIssues.join(", ")}</Text>}
               {confErr && <Text style={[styles.hint, { color: colors.danger }]}>Passwords don’t match</Text>}
+              </>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Date of birth</Text>

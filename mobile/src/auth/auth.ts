@@ -30,6 +30,18 @@ export async function bootstrapAuth() {
   }
 }
 
+// Email of the signed-in Cognito user, for onboarding that resumes an existing account.
+export async function getSessionEmail(): Promise<string | null> {
+  try {
+    await ensureAmplifyConfigured();
+    const { fetchUserAttributes } = await getAuth();
+    const attrs = await fetchUserAttributes();
+    return attrs.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function doSignIn(usernameOrEmail: string, password: string) {
   try {
     await ensureAmplifyConfigured();

@@ -119,11 +119,15 @@ export default function UsernameScreen() {
           <Pressable
             style={styles.backButton}
             onPress={() => {
-              // Always go to the login/register chooser from the first onboarding
-              // step, rather than router.back() — this is the very start of account
-              // creation, so there's nothing upstream worth returning to, and using
-              // back() here could land on whatever happened to be underneath in the
-              // navigation stack (including a stale onboarding screen).
+              // A signed-in account that still has to finish onboarding has no Welcome to
+              // return to: the gate would bounce it straight back here. Back means sign out.
+              if (isSignedIn) {
+                void signOut();
+                return;
+              }
+              // Otherwise go to the login/register chooser rather than router.back(): this
+              // is the very start of account creation, so there's nothing upstream worth
+              // returning to, and back() could land on a stale onboarding screen.
               router.replace("/(auth)/welcome");
             }}
           >

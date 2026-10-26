@@ -69,10 +69,17 @@ Rekognition, which scans every upload, has no endpoint in `eu-north-1`, and it c
       "Effect": "Allow",
       "Action": "rekognition:DetectModerationLabels",
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["cognito-idp:ListUsers", "cognito-idp:AdminDeleteUser"],
+      "Resource": "arn:aws:cognito-idp:eu-north-1:*:userpool/eu-north-1_f8sV2Qsf0"
     }
   ]
 }
 ```
+
+The Cognito statement lets the sign-up email check see logins that have no profile yet (`ListUsers`) and lets a guardian's decline remove the login (`AdminDeleteUser`). Replace the `*` with your 12-digit AWS account id if you prefer an exact ARN.
 
 Name it `FwitterMediaAccess`, attach it, finish creating the user. Open the user → Security credentials → Access keys → Create access key → "Application running outside AWS" → copy the key id and secret (the secret is shown once).
 

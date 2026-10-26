@@ -79,30 +79,88 @@ const jrPublic: Row = { id: 'jrpub', age_tier: AgeTier.JUNIOR, public_profile: t
 const jr2: Row = { id: 'jr2', age_tier: AgeTier.JUNIOR, public_profile: false };
 const ALL = [std, jr, jrPublic, jr2];
 
-// What every viewer gets: no posts across a block, hidden posts only if their own.
+// What every viewer gets for one posts row: no posts across a block, hidden posts only if their own.
 const base = (viewerId: string, blocked: string[]) => [
   ...(blocked.length ? [{ author_id: { notIn: blocked } }] : []),
   { OR: [{ hidden_at: null }, { author_id: viewerId }] },
 ];
 const author = { OR: [{ age_tier: { not: AgeTier.JUNIOR } }, { public_profile: true }] };
+// The row rules again on the originals inside quote and repost embeds (a repost embeds a quoting post).
+const withEmbeds = (post: object[]) => {
+  const quoting = [...post, { OR: [{ quoted_post_id: null }, { quoted_post: { AND: post } }] }];
+  return { AND: [...quoting, { OR: [{ repost_of_id: null }, { repost_of: { AND: quoting } }] }] };
+};
 
 describe('ModerationService.visibilityWhere', () => {
   const { service } = setup(ALL);
 
-  it('is unchanged for a JUNIOR viewer: blocks and hidden posts only', () => {
-    expect(service.visibilityWhere('jr2', [], AgeTier.JUNIOR)).toEqual({ AND: base('jr2', []) });
-    expect(service.visibilityWhere('jr2', ['x'], AgeTier.JUNIOR)).toEqual({ AND: base('jr2', ['x']) });
+  it('is blocks and hidden posts, on the row and inside its embeds, for a JUNIOR viewer', () => {
+    expect(service.visibilityWhere('jr2', [], AgeTier.JUNIOR)).toEqual(withEmbeds(base('jr2', [])));
+    expect(service.visibilityWhere('jr2', ['x'], AgeTier.JUNIOR)).toEqual(withEmbeds(base('jr2', ['x'])));
   });
 
-  it('adds the author rule, also inside quote and repost embeds, for a STANDARD viewer', () => {
-    expect(service.visibilityWhere('std', ['x'], AgeTier.STANDARD)).toEqual({
-      AND: [
-        ...base('std', ['x']),
-        { users: author },
-        { OR: [{ quoted_post_id: null }, { quoted_post: { users: author } }] },
-        { OR: [{ repost_of_id: null }, { repost_of: { users: author } }] },
-      ],
-    });
+  it('adds the author rule, also inside the embeds, for a STANDARD viewer', () => {
+    expect(service.visibilityWhere('std', ['x'], AgeTier.STANDARD)).toEqual(
+      withEmbeds([...base('std', ['x']), { users: author }]),
+    );
+  });
+});
+
+// Evaluates a fragment against an in-memory row: AND / OR, equality, `not`, `notIn`, and a
+// nested object as a to-one relation that must exist and match. Enough for the shapes above.
+function matches(where: any, row: any): boolean {
+  return Object.entries(where).every(([key, cond]: [string, any]) => {
+    if (key === 'AND') return cond.every((c: any) => matches(c, row));
+    if (key === 'OR') return cond.some((c: any) => matches(c, row));
+    const value = row[key];
+    if (cond === null || typeof cond !== 'object') return value === cond;
+    if ('notIn' in cond) return !cond.notIn.includes(value);
+    if ('not' in cond) return value !== cond.not;
+    return value != null && matches(cond, value);
+  });
+}
+
+type FakePost = {
+  author_id: string;
+  users: Row;
+  hidden_at: Date | null;
+  quoted_post_id: string | null;
+  quoted_post: FakePost | null;
+  repost_of_id: string | null;
+  repost_of: FakePost | null;
+};
+type Embeds = { quoted?: FakePost; repostOf?: FakePost; hidden?: boolean };
+const post = (author: Row, { quoted, repostOf, hidden }: Embeds = {}): FakePost => ({
+  author_id: author.id,
+  users: author,
+  hidden_at: hidden ? new Date() : null,
+  quoted_post_id: quoted ? 'q' : null,
+  quoted_post: quoted ?? null,
+  repost_of_id: repostOf ? 'r' : null,
+  repost_of: repostOf ?? null,
+});
+
+describe('ModerationService.visibilityWhere on embedded originals', () => {
+  const { service } = setup(ALL);
+  const blocked: Row = { id: 'blocked', age_tier: AgeTier.STANDARD, public_profile: false };
+  const other: Row = { id: 'other', age_tier: AgeTier.STANDARD, public_profile: false };
+  const visible = (row: FakePost) => matches(service.visibilityWhere('std', ['blocked'], AgeTier.STANDARD), row);
+
+  it('drops a quote or repost whose original is by a blocked author', () => {
+    expect(visible(post(other, { quoted: post(blocked) }))).toBe(false);
+    expect(visible(post(other, { repostOf: post(blocked) }))).toBe(false);
+    expect(visible(post(other, { quoted: post(other) }))).toBe(true);
+  });
+
+  it("drops a quote or repost whose original is hidden, unless the original is the viewer's own", () => {
+    expect(visible(post(other, { quoted: post(other, { hidden: true }) }))).toBe(false);
+    expect(visible(post(other, { repostOf: post(other, { hidden: true }) }))).toBe(false);
+    expect(visible(post(other, { quoted: post(std, { hidden: true }) }))).toBe(true);
+  });
+
+  it('drops a repost of a quote whose original fails', () => {
+    expect(visible(post(other, { repostOf: post(other, { quoted: post(blocked) }) }))).toBe(false);
+    expect(visible(post(other, { repostOf: post(other, { quoted: post(other) }) }))).toBe(true);
   });
 });
 

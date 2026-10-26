@@ -77,6 +77,9 @@ export default function PersonalDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+  // "existing_login": the address has a Fwitter login (Cognito) but no profile, so the
+  // right move is to sign in, not to pick a new password.
+  const [emailReason, setEmailReason] = useState<string | null>(null);
   const [emailInvalid, setEmailInvalid] = useState(false);
 
   // Same shape as the backend's /auth/email-available check, so "not a real email yet"
@@ -121,6 +124,7 @@ export default function PersonalDetailsScreen() {
         setEmailInvalid(true);
       } else {
         setEmailAvailable(result.available);
+        setEmailReason(result.reason ?? null);
       }
     } catch (e) {
       if (seq !== emailRequestSeq.current) return;
@@ -159,7 +163,11 @@ export default function PersonalDetailsScreen() {
     }
 
     if (!isSignedIn && emailAvailable === false) {
-      setError("Email is already registered");
+      setError(
+        emailReason === "existing_login"
+          ? "This email already has a Fwitter login. Go back and sign in instead."
+          : "Email is already registered",
+      );
       return;
     }
 
@@ -311,7 +319,11 @@ export default function PersonalDetailsScreen() {
                   ) : emailAvailable === true ? (
                     <Text style={[styles.hint, { color: colors.accent }]}>Email available</Text>
                   ) : emailAvailable === false ? (
-                    <Text style={[styles.hint, { color: colors.danger }]}>Email already registered</Text>
+                    <Text style={[styles.hint, { color: colors.danger }]}>
+                      {emailReason === "existing_login"
+                        ? "This email already has a Fwitter login. Sign in instead."
+                        : "Email already registered"}
+                    </Text>
                   ) : null}
                 </View>
               </View>

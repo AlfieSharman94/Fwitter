@@ -57,6 +57,11 @@ export default function PersonalDetailsScreen() {
     dobDay.length === 2 && dobMonth.length === 2 && dobYear.length === 4
       ? `${dobYear}-${dobMonth}-${dobDay}`
       : "";
+  // 13 to 15 year olds need a parent or guardian to confirm before the account can be
+  // used, so the email field appears as soon as the date of birth says so.
+  const dobAge = dateOfBirth ? calculateAge(Number(dobYear), Number(dobMonth), Number(dobDay)) : null;
+  const isJunior = dobAge !== null && dobAge >= MIN_AGE && dobAge <= JUNIOR_MAX_AGE;
+  const [guardianEmail, setGuardianEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
@@ -189,6 +194,22 @@ export default function PersonalDetailsScreen() {
     }
     const ageTier = age <= JUNIOR_MAX_AGE ? "JUNIOR" : "STANDARD";
 
+    const guardian = guardianEmail.trim().toLowerCase();
+    if (ageTier === "JUNIOR") {
+      if (!guardian) {
+        setError("Enter your parent or guardian’s email");
+        return;
+      }
+      if (!EMAIL_FORMAT.test(guardian)) {
+        setError("Enter a valid email address for your parent or guardian");
+        return;
+      }
+      if (guardian === email.trim().toLowerCase()) {
+        setError("Your parent or guardian’s email needs to be different from yours");
+        return;
+      }
+    }
+
     // Store all data for sign-up
     const stored = await SecureStore.getItemAsync(ONBOARDING_DATA_KEY);
     const existingData = stored ? JSON.parse(stored) : {};
@@ -200,6 +221,8 @@ export default function PersonalDetailsScreen() {
       password,
       dateOfBirth: dateOfBirth.trim(),
       ageTier,
+      // Explicit null for 16+, so an edited date of birth never keeps a stale address.
+      guardianEmail: ageTier === "JUNIOR" ? guardian : null,
     }));
 
     router.push("/(onboarding)/team-selection");
@@ -352,6 +375,23 @@ export default function PersonalDetailsScreen() {
                 </View>
                 <Text style={styles.dobHint}>DD / MM / YYYY · you must be 13 or older</Text>
               </View>
+
+              {isJunior && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Parent or guardian’s email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="parent@example.com"
+                    placeholderTextColor={colors.placeholder}
+                    value={guardianEmail}
+                    onChangeText={setGuardianEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                  />
+                  <Text style={styles.dobHint}>We’ll email them a link to confirm you can use Fwitter</Text>
+                </View>
+              )}
 
               {error && (
                 <View style={styles.errorRow}>

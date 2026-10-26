@@ -60,6 +60,7 @@ export type UserDetail = {
   suspended_until: string | null;
   banned_at: string | null;
   verified_at: string | null;
+  guardian_consent: { guardian_email: string; sent_at: string | null; confirmed_at: string | null } | null;
   posts: { id: string; content: string; created_at: string; hidden_at: string | null; hidden_reason: string | null; report_count: number; media: { url: string }[] }[];
   reports_received: { id: string; reason: string; details: string | null; status: string; created_at: string; reporter: { username: string } }[];
   moderation_received: { id: string; action: string; note: string | null; created_at: string; actor: { username: string } | null }[];

@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, Post, Query, UseGua
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AllowPendingConsent } from '../auth/allow-pending-consent.decorator';
 import { PushTokenDto, RemovePushTokenDto } from './dto/push-token.dto';
 
 @Controller('notifications')
@@ -84,7 +85,9 @@ export class NotificationsController {
     return { ok: true };
   }
 
+  // Sign-out calls this, so an account waiting for guardian consent may reach it.
   @Delete('push-token')
+  @AllowPendingConsent()
   async removePushToken(@CurrentUser() user: { sub: string }, @Body() dto: RemovePushTokenDto) {
     const viewer = await this.requireViewer(user.sub);
     await this.prisma.push_tokens.deleteMany({ where: { token: dto.token, user_id: viewer.id } });

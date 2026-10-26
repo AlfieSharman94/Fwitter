@@ -21,7 +21,7 @@ type Topic = {
 
 export default function TopicsScreen() {
   const router = useRouter();
-  const { refreshAuthState } = useAuth();
+  const { isSignedIn, refreshAuthState } = useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
@@ -87,6 +87,16 @@ export default function TopicsScreen() {
           needsConfirmation: true,
         }));
 
+      // Already signed in (an account whose profile is missing or was never finished):
+      // no sign-up and no password check, just the profile.
+      if (isSignedIn) {
+        await completeOnboardingProfile({ ...onboardingData, topicIds });
+        const status = await refreshAuthState();
+        await SecureStore.deleteItemAsync(ONBOARDING_DATA_KEY);
+        router.replace(status?.consentPending ? "/consent-pending" : "/welcome-success");
+        return;
+      }
+
       // Step 1: Sign up with Cognito
       try {
         const signUpResult = await doSignUp(onboardingData.email, onboardingData.password);
@@ -127,7 +137,7 @@ export default function TopicsScreen() {
             return;
           }
           throw new Error(
-            "An account with this email already exists. Sign in instead, or use a different email."
+            "An account with this email already exists, and that password didn’t match it. Sign in instead, or check the password."
           );
         }
       }

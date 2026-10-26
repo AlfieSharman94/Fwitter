@@ -331,7 +331,7 @@ export default function PersonalDetailsScreen() {
               {!isSignedIn && (
               <>
               <View style={styles.passwordRow}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
+                <View style={styles.inputGroup}>
                   <Text style={styles.label}>Password</Text>
                   <TextInput
                     style={[styles.input, pwShort && { borderColor: colors.danger }]}
@@ -343,11 +343,11 @@ export default function PersonalDetailsScreen() {
                   />
                 </View>
 
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.label}>Confirm</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Confirm password</Text>
                   <TextInput
                     style={[styles.input, confErr && { borderColor: colors.danger }]}
-                    placeholder="Re-enter"
+                    placeholder="Re-enter your password"
                     placeholderTextColor={colors.placeholder}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   dobInputYear: { flex: 1.5 },
   dobSeparator: { fontSize: 18, color: colors.textDim, fontFamily: fonts.bodyMedium },
   dobHint: { fontSize: 12.5, color: colors.textFaint, fontFamily: fonts.body },
-  passwordRow: { flexDirection: "row", gap: 16 },
+  passwordRow: { gap: 16 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
   errorText: { flex: 1, fontFamily: fonts.bodyMedium, color: colors.danger, fontSize: 13 },
   footer: { paddingHorizontal: 22, paddingBottom: 30, paddingTop: 8 },

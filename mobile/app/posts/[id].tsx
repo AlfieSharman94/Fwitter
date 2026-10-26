@@ -224,6 +224,9 @@ export default function PostDetailScreen() {
             placeholderTextColor={colors.placeholder}
             value={reply}
             onChangeText={setReply}
+            autoCorrect
+            spellCheck
+            keyboardType="default"
             multiline
             maxLength={MAX_LENGTH}
           />

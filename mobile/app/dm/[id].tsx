@@ -204,6 +204,9 @@ export default function ConversationScreen() {
               placeholderTextColor={colors.placeholder}
               value={draft}
               onChangeText={setDraft}
+              autoCorrect
+              spellCheck
+              keyboardType="default"
               multiline
               maxLength={MAX_LENGTH}
             />

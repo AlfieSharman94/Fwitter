@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -45,6 +45,15 @@ export default function ComposeScreen() {
   const [topicQuery, setTopicQuery] = useState("");
   const [teamResults, setTeamResults] = useState<Team[]>([]);
   const [topicResults, setTopicResults] = useState<Topic[]>([]);
+  // The topic picker sits at the bottom of the form, so its results would open under the
+  // keyboard; keep the end of the form in view while that field is in use.
+  const scrollRef = useRef<ScrollView>(null);
+  const [topicFocused, setTopicFocused] = useState(false);
+  useEffect(() => {
+    if (!topicFocused) return;
+    const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+    return () => clearTimeout(t);
+  }, [topicFocused, topicResults]);
   const [selectedTeams, setSelectedTeams] = useState<Team[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
 
@@ -227,7 +236,7 @@ export default function ComposeScreen() {
           </Pressable>
         </View>
 
-        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} style={styles.content} keyboardShouldPersistTaps="handled">
           {match && (
             <View style={styles.matchBanner}>
               <Ionicons name="football" size={16} color={colors.accent} />
@@ -240,6 +249,9 @@ export default function ComposeScreen() {
             style={styles.input}
             placeholder="What’s the take?"
             placeholderTextColor={colors.placeholder}
+            autoCorrect
+            spellCheck
+            keyboardType="default"
             multiline
             value={content}
             onChangeText={setContent}
@@ -401,6 +413,8 @@ export default function ComposeScreen() {
               placeholderTextColor={colors.placeholder}
               value={topicQuery}
               onChangeText={onTopicQuery}
+              onFocus={() => setTopicFocused(true)}
+              onBlur={() => setTopicFocused(false)}
               autoCapitalize="none"
               editable={!busy}
             />

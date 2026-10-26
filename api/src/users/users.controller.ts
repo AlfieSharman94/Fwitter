@@ -48,6 +48,7 @@ export class UsersController {
     profile_image_url: true,
     verified_at: true,
     age_tier: true,
+    public_profile: true,
     guardian_consent: { select: { guardian_email: true, sent_at: true, confirmed_at: true } },
   } as const;
 
@@ -93,7 +94,7 @@ export class UsersController {
     });
     if (!dbUser) throw new BadRequestException('profile_not_found');
 
-    const data: { username?: string; bio?: string | null; profile_image_url?: string } = {};
+    const data: { username?: string; bio?: string | null; profile_image_url?: string; public_profile?: boolean } = {};
 
     if (dto.username !== undefined) {
       // Case-insensitive uniqueness, excluding the user's own row.
@@ -113,6 +114,8 @@ export class UsersController {
     if (dto.avatarMediaId) {
       data.profile_image_url = await this.media.avatarUrl(dbUser.id, dto.avatarMediaId);
     }
+
+    if (dto.publicProfile !== undefined) data.public_profile = dto.publicProfile;
 
     try {
       const updated = await this.prisma.users.update({

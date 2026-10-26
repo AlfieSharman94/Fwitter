@@ -33,8 +33,12 @@ export class SearchService {
 
     const limitNum = Math.min(Math.max(limit, 1), 50);
 
-    // Search username and display_name (case-insensitive); either side of a block is left out.
-    const blocked = await this.moderation.blockedIds(viewerId);
+    // Search username and display_name (case-insensitive); either side of a block is left out,
+    // and so are JUNIOR accounts the viewer may not see.
+    const [blocked, visible] = await Promise.all([
+      this.moderation.blockedIds(viewerId),
+      this.moderation.usersVisibleTo(viewerId),
+    ]);
     const users = await this.prisma.users.findMany({
       where: {
         OR: [
@@ -42,6 +46,7 @@ export class SearchService {
           { display_name: { contains: query, mode: 'insensitive' } },
         ],
         ...(blocked.length ? { id: { notIn: blocked } } : {}),
+        ...(visible ? { AND: [visible] } : {}),
       },
       take: limitNum,
       select: {

@@ -149,11 +149,16 @@ export class PostsController {
       if (found !== topicIds.length) throw new BadRequestException('one_or_more_topics_not_found');
     }
 
-    // @mentions that match a real username (case-insensitive) are stored; the rest stay plain text.
+    // @mentions that match a real username (case-insensitive) are stored; the rest stay plain
+    // text, as does a JUNIOR the author may not see (so no link and no notification).
     const mentionNames = extractMentions(content);
+    const mentionable = mentionNames.length ? await this.moderation.usersVisibleTo(dbUser.id) : null;
     const mentioned = mentionNames.length
       ? await this.prisma.users.findMany({
-          where: { OR: mentionNames.map((name) => ({ username: { equals: name, mode: 'insensitive' as const } })) },
+          where: {
+            OR: mentionNames.map((name) => ({ username: { equals: name, mode: 'insensitive' as const } })),
+            ...(mentionable ? { AND: [mentionable] } : {}),
+          },
           select: { id: true },
         })
       : [];
@@ -258,8 +263,10 @@ export class PostsController {
   async getOne(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     const viewer = await this.requireViewer(user.sub);
 
-    const post = await this.prisma.posts.findUnique({
-      where: { id },
+    // The same filter as the lists, so hidden posts, posts across a block and posts by a
+    // JUNIOR the viewer cannot see (also inside embeds) read as not found.
+    const post = await this.prisma.posts.findFirst({
+      where: { id, ...(await this.moderation.visibility(viewer.id)) },
       select: {
         ...feedPostSelect(viewer.id),
         // `posts` is the self-relation to the parent, used for "Replying to @name".
@@ -268,7 +275,6 @@ export class PostsController {
     });
 
     if (!post) throw new NotFoundException('post_not_found');
-    await this.moderation.assertVisible(viewer.id, post);
 
     const { posts: parent, ...rest } = post;
     return {

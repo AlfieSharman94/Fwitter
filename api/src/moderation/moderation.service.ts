@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AgeTier, Prisma, ReportReason, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildBannedPattern, containsBannedWord } from './banned-words';
+import { canSeeUser, visibleUsersWhere } from '../users/age-tier.util';
 import { isConsentPending } from '../consent/consent-status';
 
 // Reports from this many distinct accounts hide a post until a moderator looks at it.
@@ -163,28 +164,64 @@ export class ModerationService {
     return { blocked: false };
   }
 
+  // ---- Age tiers ----------------------------------------------------------
+
+  // The rule itself is canSeeUser in users/age-tier.util.ts. Services only know the viewer's
+  // db id, so the tier is one primary-key read; an unknown viewer counts as STANDARD, the
+  // side that sees less.
+  async viewerTier(viewerId: string): Promise<AgeTier> {
+    const u = await this.prisma.users.findUnique({ where: { id: viewerId }, select: { age_tier: true } });
+    return u?.age_tier ?? AgeTier.STANDARD;
+  }
+
+  // Users rows the viewer may see (search, follower lists, mentions); null means everyone.
+  async usersVisibleTo(viewerId: string): Promise<Prisma.usersWhereInput | null> {
+    return visibleUsersWhere(await this.viewerTier(viewerId));
+  }
+
+  async isUserVisible(viewerId: string, targetId: string): Promise<boolean> {
+    const [tier, target] = await Promise.all([
+      this.viewerTier(viewerId),
+      this.prisma.users.findUnique({ where: { id: targetId }, select: { age_tier: true, public_profile: true } }),
+    ]);
+    return !!target && canSeeUser(tier, target);
+  }
+
+  // For user reads and follows: a private JUNIOR looks like it doesn't exist to a STANDARD viewer.
+  async assertUserVisible(viewerId: string, targetId: string) {
+    if (!(await this.isUserVisible(viewerId, targetId))) throw new NotFoundException('user_not_found');
+  }
+
   // ---- Visibility ---------------------------------------------------------
 
   // Prisma `where` fragment every post query spreads in: no posts from either side of a
-  // block, and no hidden posts unless they're the viewer's own.
-  visibilityWhere(viewerId: string, blockedIds: string[]): Prisma.postsWhereInput {
-    return {
-      AND: [
-        ...(blockedIds.length ? [{ author_id: { notIn: blockedIds } }] : []),
-        { OR: [{ hidden_at: null }, { author_id: viewerId }] },
-      ],
-    };
+  // block, no hidden posts unless they're the viewer's own, and for a STANDARD viewer no
+  // posts by a private JUNIOR. The originals inside quote and repost embeds must pass the
+  // same rules (a repost embeds a quoting post, as in feedPostSelect), so a quote or repost
+  // whose original the viewer cannot see is dropped with it.
+  visibilityWhere(viewerId: string, blockedIds: string[], viewerTier: AgeTier): Prisma.postsWhereInput {
+    const author = visibleUsersWhere(viewerTier);
+    const post: Prisma.postsWhereInput[] = [
+      ...(blockedIds.length ? [{ author_id: { notIn: blockedIds } }] : []),
+      { OR: [{ hidden_at: null }, { author_id: viewerId }] },
+      ...(author ? [{ users: author }] : []),
+    ];
+    const quoting = [...post, { OR: [{ quoted_post_id: null }, { quoted_post: { AND: post } }] }];
+    return { AND: [...quoting, { OR: [{ repost_of_id: null }, { repost_of: { AND: quoting } }] }] };
   }
 
   async visibility(viewerId: string): Promise<Prisma.postsWhereInput> {
-    return this.visibilityWhere(viewerId, await this.blockedIds(viewerId));
+    const [blocked, tier] = await Promise.all([this.blockedIds(viewerId), this.viewerTier(viewerId)]);
+    return this.visibilityWhere(viewerId, blocked, tier);
   }
 
-  // For single-post reads: hidden posts and posts across a block look like they don't exist.
+  // For single-post reads: hidden posts, posts across a block and posts by a JUNIOR the viewer
+  // cannot see look like they don't exist.
   async assertVisible(viewerId: string, post: { author_id: string; hidden_at: Date | null }) {
     if (post.author_id === viewerId) return;
     if (post.hidden_at) throw new NotFoundException('post_not_found');
     if (await this.isBlockedEitherWay(viewerId, post.author_id)) throw new NotFoundException('post_not_found');
+    if (!(await this.isUserVisible(viewerId, post.author_id))) throw new NotFoundException('post_not_found');
   }
 
   // ---- Banned words -------------------------------------------------------

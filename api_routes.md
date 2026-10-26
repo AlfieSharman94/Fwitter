@@ -36,7 +36,7 @@ Response:
 ### GET /users/me/profile
 Returns the signed-in user's own profile row.
 Response:
-- 200 { user: { id, username, display_name, email, is_onboarded, date_of_birth, created_at, bio, profile_image_url, verified_at, age_tier, guardian_consent: { guardian_email, sent_at, confirmed_at } | null, consent_pending: boolean } }
+- 200 { user: { id, username, display_name, email, is_onboarded, date_of_birth, created_at, bio, profile_image_url, verified_at, age_tier, public_profile, guardian_consent: { guardian_email, sent_at, confirmed_at } | null, consent_pending: boolean } }
 - consent_pending is true for a JUNIOR (13 to 15) account that finished onboarding but has no guardian confirmation yet. Every other protected route then answers 403 { message: "consent_pending" }, except GET /users/me, this route, the onboarding routes, the guardian routes below, DELETE /users/me and DELETE /notifications/push-token.
 
 ### POST /users/me/profile
@@ -45,6 +45,15 @@ Body:
 - { username: string, displayName: string, dateOfBirth: "YYYY-MM-DD" }
 Response:
 - 200 { user: { id, username, display_name, email, is_onboarded, ... } }
+
+### PATCH /users/me/profile
+Updates the current user's profile. All fields optional.
+Body:
+- { username?: string, bio?: string, avatarMediaId?: string, publicProfile?: boolean }
+- publicProfile is the JUNIOR (13 to 15) opt-in. Until it is true, a JUNIOR account is invisible to STANDARD (16+) viewers everywhere: search, profile, follows, posts and embeds, notifications. Stored for everyone, ignored for STANDARD accounts.
+Response:
+- 200 { user: { id, username, display_name, ..., age_tier, public_profile } }
+- 409 { message: "username_taken" }
 
 ### PUT /users/me/teams
 Sets primary + additional teams for the current user.
@@ -240,7 +249,7 @@ Response:
 ## Search (Protected)
 
 ### GET /search/users?q=<string>&limit=<n>
-Search users by username or display name (case-insensitive).
+Search users by username or display name (case-insensitive). Either side of a block is left out, and so are JUNIOR accounts that have not opted in to a public profile when the viewer is STANDARD.
 Query params:
 - q (required, min 2 chars, trimmed)
 - limit (optional, default 20, clamped 1-50)

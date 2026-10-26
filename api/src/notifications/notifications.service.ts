@@ -39,8 +39,13 @@ export class NotificationsService {
   async notify(args: NotifyArgs) {
     if (args.recipientId === args.actorId) return;
     try {
-      // Moderation warnings always get through; blocks only apply between members.
-      if (args.type !== 'WARNING' && (await this.moderation.isBlockedEitherWay(args.recipientId, args.actorId))) return;
+      // Moderation warnings always get through; blocks only apply between members, and a
+      // member is never told about an account they cannot see (a private JUNIOR acting on a
+      // STANDARD account's post or profile).
+      if (args.type !== 'WARNING') {
+        if (await this.moderation.isBlockedEitherWay(args.recipientId, args.actorId)) return;
+        if (!(await this.moderation.isUserVisible(args.recipientId, args.actorId))) return;
+      }
       const { count } = await this.prisma.notifications.createMany({
         data: [
           {

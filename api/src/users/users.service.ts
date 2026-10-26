@@ -40,14 +40,8 @@ export class UsersService {
       throw new BadRequestException('cannot_follow_self');
     }
 
-    // Verify target user exists
-    const targetUser = await this.prisma.users.findUnique({
-      where: { id: targetId },
-      select: { id: true },
-    });
-    if (!targetUser) {
-      throw new NotFoundException('user_not_found');
-    }
+    // A missing target and a private JUNIOR both read as not found.
+    await this.moderation.assertUserVisible(viewerId, targetId);
     await this.moderation.assertCanInteract(viewerId, targetId);
 
     // Idempotent: create if not exists, ignore if already exists
@@ -143,6 +137,7 @@ export class UsersService {
     if (!targetUser) {
       throw new NotFoundException('user_not_found');
     }
+    await this.moderation.assertUserVisible(viewerId, targetId);
 
     // Get counts in parallel
     const [followersCount, followingCount, postsCount, isFollowing, blockRows] = await Promise.all([
@@ -207,9 +202,12 @@ export class UsersService {
     }>
   > {
     const limitNum = Math.min(Math.max(limit, 1), 50);
+    await this.moderation.assertUserVisible(viewerId, targetId);
+    // Members the viewer may not see are left out (counts on the profile stay raw).
+    const visible = await this.moderation.usersVisibleTo(viewerId);
 
     const follows = await this.prisma.follows.findMany({
-      where: { following_id: targetId },
+      where: { following_id: targetId, ...(visible ? { users_follows_follower_idTousers: visible } : {}) },
       take: limitNum,
       select: {
         follower_id: true,
@@ -262,9 +260,11 @@ export class UsersService {
     }>
   > {
     const limitNum = Math.min(Math.max(limit, 1), 50);
+    await this.moderation.assertUserVisible(viewerId, targetId);
+    const visible = await this.moderation.usersVisibleTo(viewerId);
 
     const follows = await this.prisma.follows.findMany({
-      where: { follower_id: targetId },
+      where: { follower_id: targetId, ...(visible ? { users_follows_following_idTousers: visible } : {}) },
       take: limitNum,
       select: {
         following_id: true,

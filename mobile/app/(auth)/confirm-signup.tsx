@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -95,7 +95,8 @@ export default function ConfirmSignUpScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.content}>
+      {/* The number pad has no return key, so lift the form above it to keep Confirm reachable. */}
+      <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <Text style={styles.subtitle}>Enter the confirmation code sent to {params.email}</Text>
         <Pressable
           onPress={async () => {
@@ -142,7 +143,7 @@ export default function ConfirmSignUpScreen() {
             <Text style={styles.submitButtonText}>Confirm</Text>
           )}
         </Pressable>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

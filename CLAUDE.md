@@ -73,8 +73,8 @@ Login and register
 1. ~~Land on the Squad tab by default after login.~~ Done: Home now opens on Squad (`fix/home-default-squad`).
 2. ~~Side menu: username and avatar take a second to appear.~~ Done: the menu loads the profile when Home mounts (`fix/side-menu-load-and-inset`).
 3. ~~Side menu avatar is slightly clipped by the iOS status bar.~~ Done: the header uses the safe-area inset (`fix/side-menu-load-and-inset`).
-4. Password dots are hard to see (dark dots on dark grey) in dark mode.
-5. Confirm-signup screen: the keyboard covers the Confirm button after entering the code.
+4. ~~Password dots are hard to see (dark dots on dark grey) in dark mode.~~ Done: the dim "••••••••" placeholders on sign-in and reset password are now words, so an empty field no longer looks filled (`fix/auth-password-and-keyboard`). Typed characters were already white.
+5. ~~Confirm-signup screen: the keyboard covers the Confirm button after entering the code.~~ Done: the form moves above the number pad (`fix/auth-password-and-keyboard`).
 
 Child accounts
 6. Restyle the Cognito verification-code email so it is clearly from Fwitter (Cognito message templates, or SES custom sender).

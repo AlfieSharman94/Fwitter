@@ -137,7 +137,7 @@ export default function SignInScreen() {
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 placeholderTextColor={colors.placeholder}
                 value={password}
                 onChangeText={setPassword}

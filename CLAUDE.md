@@ -79,7 +79,7 @@ Login and register
 Child accounts
 6. Restyle the Cognito verification-code email so it is clearly from Fwitter (Cognito message templates, or SES custom sender).
 7. Let a parent approve a child from inside the app, not only through the web page.
-8. On the consent web page, put the delete-account tick box under the "No, delete the account" button.
+8. ~~On the consent web page, put the delete-account tick box under the "No, delete the account" button.~~ Done (`fix/consent-page-tickbox`).
 9. A pending JUNIOR account sees only the waiting screen (by design today). Decide with the user whether they get limited read-only access instead.
 10. Proposal: a child must link to an existing adult Fwitter account (the guardian email must belong to one); the adult's Activity tab shows the child's new follows, posts and replies. Needs product decisions before building.
 

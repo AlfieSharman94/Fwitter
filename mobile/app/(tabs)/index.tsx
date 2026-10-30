@@ -16,7 +16,7 @@ type FeedSort = "ranked" | "latest";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [feedType, setFeedType] = useState<FeedType>("12th-man");
+  const [feedType, setFeedType] = useState<FeedType>("squad");
   // 12th Man only: "For you" (ranked) or "Latest" (chronological).
   const [sort, setSort] = useState<FeedSort>("ranked");
   const [loading, setLoading] = useState(true);

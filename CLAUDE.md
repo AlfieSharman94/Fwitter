@@ -70,7 +70,7 @@ The IAM user's policy covers S3 on the bucket, `rekognition:DetectModerationLabe
 ## Open backlog (user feedback, 30 October 2026, not started)
 
 Login and register
-1. Land on the Squad tab by default after login (Home currently opens on 12th Man).
+1. ~~Land on the Squad tab by default after login.~~ Done: Home now opens on Squad (`fix/home-default-squad`).
 2. Side menu: username and avatar take a second to appear; load them sooner.
 3. Side menu avatar is slightly clipped by the iOS status bar; move it down.
 4. Password dots are hard to see (dark dots on dark grey) in dark mode.

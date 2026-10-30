@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, Image, Modal, Animated, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../auth/AuthProvider";
 import { apiFetch } from "../api/client";
+import { getMe } from "../auth/me";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii } from "../theme/theme";
 
@@ -27,10 +29,16 @@ type SideMenuProps = {
 export function SideMenu({ visible, onClose }: SideMenuProps) {
   const router = useRouter();
   const { signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const slideAnim = React.useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = React.useRef(new Animated.Value(0)).current;
+
+  // Load before the first open so the header is ready when the drawer slides in;
+  // each open then refreshes it in the background.
+  useEffect(() => {
+    loadProfile();
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -65,16 +73,11 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
 
   const loadProfile = async () => {
     try {
-      setLoading(true);
       // Read-only check: GET never creates a profile. Using POST here previously
       // meant a signed-in user with no profile row yet (e.g. their account exists
       // in Cognito but not in this environment's database) would have a garbage
       // placeholder profile ("temp"/"temp") silently created for them.
-      const profileResponse = await apiFetch("/users/me/profile", {
-        method: "GET",
-      });
-
-      const userId = profileResponse.user?.id;
+      const userId = getMe()?.id ?? (await apiFetch("/users/me/profile", { method: "GET" })).user?.id;
       if (!userId) {
         // Profile doesn't exist yet - user might not be onboarded
         return;
@@ -94,8 +97,6 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
     } catch (e: any) {
       // Profile might not exist - that's okay, show empty state
       console.error("Failed to load profile:", e);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -138,7 +139,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
 
         <Animated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
           {/* User Profile Header */}
-          <View style={styles.profileHeader}>
+          <View style={[styles.profileHeader, { paddingTop: insets.top + 16 }]}>
             {profile?.avatarUrl ? (
               <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} />
             ) : (
@@ -253,7 +254,6 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     paddingHorizontal: 24,
-    paddingTop: 40,
     paddingBottom: 16,
   },
   avatar: {

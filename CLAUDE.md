@@ -84,7 +84,7 @@ Child accounts
 10. Proposal: a child must link to an existing adult Fwitter account (the guardian email must belong to one); the adult's Activity tab shows the child's new follows, posts and replies. Needs product decisions before building.
 
 Profiles
-11. After following someone, the Message button only appears after leaving and reopening the profile; refresh eligibility on follow.
+11. ~~After following someone, the Message button only appears after leaving and reopening the profile.~~ Done: the profile re-checks DM eligibility after each follow or unfollow (`fix/profile-dm-after-follow`).
 
 Moderation
 12. Add "Not football related" as a report reason.

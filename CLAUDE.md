@@ -88,7 +88,7 @@ Profiles
 
 Moderation
 12. Add "Not football related" as a report reason.
-13. The banned-word error on compose is below the fold; show it as a dismissable alert or under the Add photo / Add poll row.
+13. ~~The banned-word error on compose is below the fold.~~ Done: errors from posting now show as a dismissable alert (`fix/compose-banned-word-alert`).
 
 Questions from the user to answer
 14. Adults cannot find or see child accounts (search, followers, replies). This is the private-by-default JUNIOR rule; explain it and confirm whether adults should see children who follow them or reply to them.

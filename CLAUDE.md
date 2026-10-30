@@ -87,7 +87,7 @@ Profiles
 11. ~~After following someone, the Message button only appears after leaving and reopening the profile.~~ Done: the profile re-checks DM eligibility after each follow or unfollow (`fix/profile-dm-after-follow`).
 
 Moderation
-12. Add "Not football related" as a report reason.
+12. ~~Add "Not football related" as a report reason.~~ Done: `NOT_FOOTBALL` on `ReportReason`, shown as "not football" in the dashboard; it counts towards auto-hide like any other reason (`feat/report-not-football`).
 13. ~~The banned-word error on compose is below the fold.~~ Done: errors from posting now show as a dismissable alert (`fix/compose-banned-word-alert`).
 
 Questions from the user to answer

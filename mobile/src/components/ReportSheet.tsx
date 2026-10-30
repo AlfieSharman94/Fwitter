@@ -13,6 +13,7 @@ const REASONS = [
   { key: "VIOLENCE", label: "Violence or threats" },
   { key: "SELF_HARM", label: "Self-harm" },
   { key: "UNDERAGE", label: "Someone under 13" },
+  { key: "NOT_FOOTBALL", label: "Not football related" },
   { key: "OTHER", label: "Something else" },
 ] as const;
 

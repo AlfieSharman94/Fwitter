@@ -101,6 +101,7 @@ enum ReportReason {
   VIOLENCE
   SELF_HARM
   UNDERAGE
+  NOT_FOOTBALL
   OTHER
 }
 

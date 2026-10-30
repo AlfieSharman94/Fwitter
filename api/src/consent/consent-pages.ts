@@ -23,8 +23,8 @@ function layout(title: string, body: string): string {
   form { margin: 24px 0 0; }
   button { width: 100%; padding: 15px; border-radius: 12px; border: 0; font-size: 17px; font-weight: 700; cursor: pointer; }
   .confirm { background: #00c853; color: #06210f; }
-  .decline { background: transparent; color: #ea3333; border: 2px solid #ea3333; margin-top: 12px; }
-  label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #9a9a9a; margin-top: 28px; }
+  .decline { background: transparent; color: #ea3333; border: 2px solid #ea3333; }
+  label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #9a9a9a; margin-top: 12px; }
   .muted { color: #9a9a9a; font-size: 14px; margin-top: 24px; }
 </style>
 </head>
@@ -47,8 +47,8 @@ export function reviewPage(input: { username: string; token: string }): string {
 <p>Until you confirm, the account cannot be used.</p>
 <form method="post" action="${base}/confirm"><button class="confirm" type="submit">Yes, I give my consent</button></form>
 <form method="post" action="${base}/decline">
-<label><input type="checkbox" name="understand" required> I understand this permanently deletes @${u}'s account and everything they have posted.</label>
 <button class="decline" type="submit">No, delete the account</button>
+<label><input type="checkbox" name="understand" required> I understand this permanently deletes @${u}'s account and everything they have posted.</label>
 </form>
 <p class="muted">This link works once and expires 7 days after it was sent. If you did not expect this email, you can ignore it; the account stays locked.</p>`,
   );

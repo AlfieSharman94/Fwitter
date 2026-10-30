@@ -121,7 +121,7 @@ export default function ResetPasswordScreen() {
               <Text style={styles.label}>New password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="••••••••"
+                placeholder="Enter a new password"
                 placeholderTextColor={colors.placeholder}
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -134,7 +134,7 @@ export default function ResetPasswordScreen() {
               <Text style={styles.label}>Confirm password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="••••••••"
+                placeholder="Re-enter your password"
                 placeholderTextColor={colors.placeholder}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}

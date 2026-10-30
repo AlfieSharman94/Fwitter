@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -204,7 +205,10 @@ export default function ComposeScreen() {
 
       router.back();
     } catch (e: any) {
-      setError(
+      // An alert rather than the inline error: the inline one sits below the tag
+      // pickers, off screen on most phones.
+      Alert.alert(
+        "Couldn’t post",
         e?.message === "content_not_allowed"
           ? "That post contains language we don’t allow on Fwitter."
           : e?.message === "blocked"

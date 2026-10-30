@@ -70,25 +70,25 @@ The IAM user's policy covers S3 on the bucket, `rekognition:DetectModerationLabe
 ## Open backlog (user feedback, 30 October 2026, not started)
 
 Login and register
-1. Land on the Squad tab by default after login (Home currently opens on 12th Man).
-2. Side menu: username and avatar take a second to appear; load them sooner.
-3. Side menu avatar is slightly clipped by the iOS status bar; move it down.
-4. Password dots are hard to see (dark dots on dark grey) in dark mode.
-5. Confirm-signup screen: the keyboard covers the Confirm button after entering the code.
+1. ~~Land on the Squad tab by default after login.~~ Done: Home now opens on Squad (`fix/feedback-round-2`).
+2. ~~Side menu: username and avatar take a second to appear.~~ Done: the menu loads the profile when Home mounts (`fix/feedback-round-2`).
+3. ~~Side menu avatar is slightly clipped by the iOS status bar.~~ Done: the header uses the safe-area inset (`fix/feedback-round-2`).
+4. ~~Password dots are hard to see (dark dots on dark grey) in dark mode.~~ Done: the dim "••••••••" placeholders on sign-in and reset password are now words, so an empty field no longer looks filled (`fix/feedback-round-2`). Typed characters were already white.
+5. ~~Confirm-signup screen: the keyboard covers the Confirm button after entering the code.~~ Done: the form moves above the number pad (`fix/feedback-round-2`).
 
 Child accounts
 6. Restyle the Cognito verification-code email so it is clearly from Fwitter (Cognito message templates, or SES custom sender).
 7. Let a parent approve a child from inside the app, not only through the web page.
-8. On the consent web page, put the delete-account tick box under the "No, delete the account" button.
+8. ~~On the consent web page, put the delete-account tick box under the "No, delete the account" button.~~ Done (`fix/feedback-round-2`).
 9. A pending JUNIOR account sees only the waiting screen (by design today). Decide with the user whether they get limited read-only access instead.
 10. Proposal: a child must link to an existing adult Fwitter account (the guardian email must belong to one); the adult's Activity tab shows the child's new follows, posts and replies. Needs product decisions before building.
 
 Profiles
-11. After following someone, the Message button only appears after leaving and reopening the profile; refresh eligibility on follow.
+11. ~~After following someone, the Message button only appears after leaving and reopening the profile.~~ Done: the profile re-checks DM eligibility after each follow or unfollow (`fix/feedback-round-2`).
 
 Moderation
-12. Add "Not football related" as a report reason.
-13. The banned-word error on compose is below the fold; show it as a dismissable alert or under the Add photo / Add poll row.
+12. ~~Add "Not football related" as a report reason.~~ Done: `NOT_FOOTBALL` on `ReportReason`, shown as "not football" in the dashboard; it counts towards auto-hide like any other reason (`fix/feedback-round-2`).
+13. ~~The banned-word error on compose is below the fold.~~ Done: errors from posting now show as a dismissable alert (`fix/feedback-round-2`).
 
 Questions from the user to answer
 14. Adults cannot find or see child accounts (search, followers, replies). This is the private-by-default JUNIOR rule; explain it and confirm whether adults should see children who follow them or reply to them.

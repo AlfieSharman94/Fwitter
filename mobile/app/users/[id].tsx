@@ -107,6 +107,14 @@ export default function UserProfileScreen() {
     }, [userId, loadProfile, loadPosts])
   );
 
+  // A follow can change DM eligibility (mutual follows), which only the profile
+  // endpoint knows, so re-read it quietly once the follow call lands.
+  const refreshDm = () => {
+    apiFetch(`/users/${userId}`)
+      .then((data) => setProfile((prev) => (prev ? { ...prev, dm: data.dm } : prev)))
+      .catch(() => {});
+  };
+
   const handleFollow = async () => {
     if (!profile || profile.isSelf) return;
 
@@ -125,6 +133,7 @@ export default function UserProfileScreen() {
         followersCount: result.followersCount,
         followingCount: result.followingCount,
       } : null);
+      refreshDm();
     } catch (e: any) {
       setProfile((prev) => prev ? { ...prev, isFollowing: previousState, followersCount: prev.followersCount - 1 } : null);
       setFollowError(e?.message ?? "Failed to follow user");
@@ -152,6 +161,7 @@ export default function UserProfileScreen() {
         followersCount: result.followersCount,
         followingCount: result.followingCount,
       } : null);
+      refreshDm();
     } catch (e: any) {
       setProfile((prev) => prev ? { ...prev, isFollowing: previousState, followersCount: prev.followersCount + 1 } : null);
       setFollowError(e?.message ?? "Failed to unfollow user");

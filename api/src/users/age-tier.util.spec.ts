@@ -44,10 +44,21 @@ describe('canSeeUser (private by default for 13 to 15s)', () => {
     expect(canSeeUser(AgeTier.STANDARD, privateJunior)).toBe(false);
   });
 
+  it('a STANDARD viewer also sees a private JUNIOR who follows them', () => {
+    expect(canSeeUser(AgeTier.STANDARD, privateJunior, true)).toBe(true);
+  });
+
   it('visibleUsersWhere is the same rule as a where fragment', () => {
     expect(visibleUsersWhere(AgeTier.JUNIOR)).toBeNull();
     expect(visibleUsersWhere(AgeTier.STANDARD)).toEqual({
       OR: [{ age_tier: { not: AgeTier.JUNIOR } }, { public_profile: true }],
+    });
+    expect(visibleUsersWhere(AgeTier.STANDARD, 'me')).toEqual({
+      OR: [
+        { age_tier: { not: AgeTier.JUNIOR } },
+        { public_profile: true },
+        { follows_follows_follower_idTousers: { some: { following_id: 'me' } } },
+      ],
     });
   });
 });

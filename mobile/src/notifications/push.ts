@@ -1,8 +1,9 @@
 // Expo push: registering this device's token with the API, and opening the
 // right screen when a notification is tapped.
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import { useRouter, type Href } from "expo-router";
 import { apiFetch } from "../api/client";
@@ -48,6 +49,32 @@ export async function registerPushToken() {
     registeredToken = token;
   } catch {
     // No token available on this device/build; nothing to register.
+  }
+}
+
+const PROMPT_SHOWN_KEY = "fwitter.pushPromptShown";
+
+// iOS only shows its permission prompt once, so ask in our own words first and
+// only trigger the system prompt on Yes. Shown once per install; "Not now"
+// leaves it to Settings > Notifications.
+export async function askForPushOnce() {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "undetermined") return;
+    if (await SecureStore.getItemAsync(PROMPT_SHOWN_KEY)) return;
+    await SecureStore.setItemAsync(PROMPT_SHOWN_KEY, "1");
+    Alert.alert("Turn on notifications?", "Find out when someone replies to you, follows you or sends you a message.", [
+      { text: "Not now", style: "cancel" },
+      {
+        text: "Turn on",
+        onPress: async () => {
+          const res = await Notifications.requestPermissionsAsync();
+          if (res.status === "granted") registerPushToken();
+        },
+      },
+    ]);
+  } catch {
+    // No permission API on this build; nothing to ask.
   }
 }
 

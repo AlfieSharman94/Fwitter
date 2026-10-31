@@ -175,16 +175,18 @@ export class ModerationService {
   }
 
   // Users rows the viewer may see (search, follower lists, mentions); null means everyone.
-  async usersVisibleTo(viewerId: string): Promise<Prisma.usersWhereInput | null> {
-    return visibleUsersWhere(await this.viewerTier(viewerId));
+  // includeOwnFollowers adds private JUNIORs who follow the viewer, for the viewer's own lists.
+  async usersVisibleTo(viewerId: string, includeOwnFollowers = false): Promise<Prisma.usersWhereInput | null> {
+    return visibleUsersWhere(await this.viewerTier(viewerId), includeOwnFollowers ? viewerId : undefined);
   }
 
   async isUserVisible(viewerId: string, targetId: string): Promise<boolean> {
-    const [tier, target] = await Promise.all([
+    const [tier, target, followsViewer] = await Promise.all([
       this.viewerTier(viewerId),
       this.prisma.users.findUnique({ where: { id: targetId }, select: { age_tier: true, public_profile: true } }),
+      this.prisma.follows.count({ where: { follower_id: targetId, following_id: viewerId } }),
     ]);
-    return !!target && canSeeUser(tier, target);
+    return !!target && canSeeUser(tier, target, followsViewer > 0);
   }
 
   // For user reads and follows: a private JUNIOR looks like it doesn't exist to a STANDARD viewer.
@@ -200,7 +202,7 @@ export class ModerationService {
   // same rules (a repost embeds a quoting post, as in feedPostSelect), so a quote or repost
   // whose original the viewer cannot see is dropped with it.
   visibilityWhere(viewerId: string, blockedIds: string[], viewerTier: AgeTier): Prisma.postsWhereInput {
-    const author = visibleUsersWhere(viewerTier);
+    const author = visibleUsersWhere(viewerTier, viewerId);
     const post: Prisma.postsWhereInput[] = [
       ...(blockedIds.length ? [{ author_id: { notIn: blockedIds } }] : []),
       { OR: [{ hidden_at: null }, { author_id: viewerId }] },

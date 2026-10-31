@@ -67,7 +67,7 @@ The IAM user's policy covers S3 on the bucket, `rekognition:DetectModerationLabe
 - **Shipping to TestFlight:** `eas build --profile production --platform ios`, then `eas submit --platform ios --latest`. A stray keychain entry for the Apple ID "y" makes EAS default to it; type the real Apple ID over it.
 - **Club catalogue:** `api/scripts/seed-data/teams.mjs`, 2026-27 memberships, 1,635 clubs in 127 groups including the English pyramid to step 6. The seed never deletes or renames, so a rename creates a duplicate.
 
-## Open backlog (user feedback, 30 October 2026, not started)
+## Open backlog (user feedback, 30 October 2026; decisions 31 October 2026)
 
 Login and register
 1. ~~Land on the Squad tab by default after login.~~ Done: Home now opens on Squad (`fix/feedback-round-2`).
@@ -77,11 +77,18 @@ Login and register
 5. ~~Confirm-signup screen: the keyboard covers the Confirm button after entering the code.~~ Done: the form moves above the number pad (`fix/feedback-round-2`).
 
 Child accounts
-6. Restyle the Cognito verification-code email so it is clearly from Fwitter (Cognito message templates, or SES custom sender).
-7. Let a parent approve a child from inside the app, not only through the web page.
+6. Restyle the Cognito verification-code email. Decided: the user changes the subject and body in the Cognito console (Messaging, Message templates, Verification message); subject "Your Fwitter code". The sender stays Cognito's until SES is live.
+7. Let a parent or guardian approve a child from inside the app as well as the web page. Decided: an approval card in the Activity tab of the adult account whose email is the guardian email, plus a push; the email, web page and card show the child's date of birth to check. Frontend copy always says "parent or guardian". 7a: approving in the app offers a "Link @child to my account" tick box, ticked by default (the one case where the adult starts a link; see 10).
 8. ~~On the consent web page, put the delete-account tick box under the "No, delete the account" button.~~ Done (`fix/feedback-round-2`).
-9. A pending JUNIOR account sees only the waiting screen (by design today). Decide with the user whether they get limited read-only access instead.
-10. Proposal: a child must link to an existing adult Fwitter account (the guardian email must belong to one); the adult's Activity tab shows the child's new follows, posts and replies. Needs product decisions before building.
+9. ~~Should a pending JUNIOR account get read-only access?~~ Decided: no, it stays on the waiting screen (which already has resend, change email and log out).
+10. Linked accounts. Decided:
+    - Optional. The person whose activity is shared sends the request; the other side accepts. A child can send a request to an adult; an adult can send one only to another adult, so adults cannot start links with children (exception: 7a). The accepting side must be 18+ by date of birth.
+    - The sender picks what is shared: posts, replies, reposts, quotes, new follows, messages. The adult sees the choices before accepting. Shared activity appears in the adult's Activity tab.
+    - Messages: the adult sees only the child's own messages and the other person's username, never the other person's messages.
+    - Changing what is shared: under 16, sharing more applies straight away; sharing less needs the adult's approval. 16+ can change it at any time and the adult is told.
+    - A "Linked accounts" section in Settings shows every link on both sides. Under 16 only the adult can unlink. At 16 the child gets a "Stay linked to @name?" prompt, and from then on can unlink from Settings.
+    - 16+ accounts can link to an adult too (for example someone with learning difficulties whose parent keeps an eye on them): both agree, either can unlink at any time.
+    - A child can have up to 2 linked adults; an adult can link to any number of accounts.
 
 Profiles
 11. ~~After following someone, the Message button only appears after leaving and reopening the profile.~~ Done: the profile re-checks DM eligibility after each follow or unfollow (`fix/feedback-round-2`).
@@ -91,8 +98,8 @@ Moderation
 13. ~~The banned-word error on compose is below the fold.~~ Done: errors from posting now show as a dismissable alert (`fix/feedback-round-2`).
 
 Questions from the user to answer
-14. Adults cannot find or see child accounts (search, followers, replies). This is the private-by-default JUNIOR rule; explain it and confirm whether adults should see children who follow them or reply to them.
-15. Explain how 12th Man works (see "Feeds" above).
-16. First launch should ask for the right permissions (notifications, photos) at a sensible moment.
+14. Adults and child accounts. Explained: JUNIOR profiles are private by default. Decided: a JUNIOR becomes visible to an adult once the junior follows that adult (followers list, new-follower notification, follow back); search and other lists still hide them. If the junior unfollows, the adult's follow is removed and the junior is hidden again. DMs stay same-tier only.
+15. ~~Explain how 12th Man works.~~ Answered (see "Feeds" above).
+16. Permissions. Decided: photo access stays as it is (asked when a photo is first added). Notifications: a Fwitter screen asks "Turn on notifications?" the first time someone reaches the tabs, and the iOS prompt only appears if they tap Yes.
 
 Also pending outside the code: SES for consent emails, Railway backups, privacy policy URL and external TestFlight review.

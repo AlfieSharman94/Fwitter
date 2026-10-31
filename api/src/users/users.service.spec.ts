@@ -11,6 +11,7 @@ function setup(opts: { visible: boolean; tier: AgeTier }) {
     create: jest.fn().mockResolvedValue({}),
     count: jest.fn().mockResolvedValue(0),
     findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
   };
   const users = {
     findUnique: jest.fn().mockResolvedValue({
@@ -32,7 +33,7 @@ function setup(opts: { visible: boolean; tier: AgeTier }) {
   } as any;
   const notifications = { notify: jest.fn(), remove: jest.fn() } as any;
   const dm = { eligibility: jest.fn() } as any;
-  return { follows, notifications, service: new UsersService(prisma, notifications, moderation, dm) };
+  return { follows, users, moderation, notifications, service: new UsersService(prisma, notifications, moderation, dm) };
 }
 
 const author = { OR: [{ age_tier: { not: AgeTier.JUNIOR } }, { public_profile: true }] };
@@ -49,6 +50,31 @@ describe('UsersService.followUser', () => {
     const { follows, service } = setup({ visible: true, tier: AgeTier.STANDARD });
     await expect(service.followUser('std', 'jrpub')).resolves.toEqual({ isFollowing: true, followersCount: 0, followingCount: 0 });
     expect(follows.create).toHaveBeenCalledWith({ data: { follower_id: 'std', following_id: 'jrpub' } });
+  });
+});
+
+describe('UsersService.unfollowUser', () => {
+  const tiers = (rows: Record<string, { age_tier: AgeTier; public_profile?: boolean }>) => async ({ where }: any) =>
+    rows[where.id] ?? null;
+
+  it("removes the adult's follow-back when a private JUNIOR unfollows them", async () => {
+    const { follows, users, service } = setup({ visible: true, tier: AgeTier.JUNIOR });
+    users.findUnique.mockImplementation(
+      tiers({ jr: { age_tier: AgeTier.JUNIOR, public_profile: false }, std: { age_tier: AgeTier.STANDARD } }),
+    );
+    await service.unfollowUser('jr', 'std');
+    expect(follows.deleteMany).toHaveBeenCalledWith({ where: { follower_id: 'jr', following_id: 'std' } });
+    expect(follows.deleteMany).toHaveBeenCalledWith({ where: { follower_id: 'std', following_id: 'jr' } });
+  });
+
+  it('leaves the other follow alone otherwise', async () => {
+    const { follows, users, service } = setup({ visible: true, tier: AgeTier.JUNIOR });
+    users.findUnique.mockImplementation(
+      tiers({ jrpub: { age_tier: AgeTier.JUNIOR, public_profile: true }, std: { age_tier: AgeTier.STANDARD }, jr2: { age_tier: AgeTier.JUNIOR } }),
+    );
+    await service.unfollowUser('jrpub', 'std');
+    await service.unfollowUser('std', 'jr2');
+    expect(follows.deleteMany).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -72,6 +98,13 @@ describe('UsersService.getFollowers / getFollowing', () => {
     await service.getFollowing('std', 'club');
     expect(follows.findMany.mock.calls[0][0].where).toEqual({ following_id: 'club', users_follows_follower_idTousers: author });
     expect(follows.findMany.mock.calls[1][0].where).toEqual({ follower_id: 'club', users_follows_following_idTousers: author });
+  });
+
+  it('includes private JUNIORs who follow you on your own lists only', async () => {
+    const { moderation, service } = setup({ visible: true, tier: AgeTier.STANDARD });
+    await service.getFollowers('std', 'std');
+    await service.getFollowers('std', 'club');
+    expect(moderation.usersVisibleTo.mock.calls).toEqual([['std', true], ['std', false]]);
   });
 
   it('filters nothing for a JUNIOR viewer', async () => {

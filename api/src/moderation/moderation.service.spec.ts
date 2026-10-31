@@ -52,12 +52,19 @@ describe('ModerationService status cache', () => {
 
 type Row = { id: string; age_tier: AgeTier; public_profile: boolean };
 type Block = { blocker_id: string; blocked_id: string };
+type Follow = { follower_id: string; following_id: string };
 
-// Prisma stand-in: users looked up by id, blocks as rows.
-function setup(users: Row[], blocks: Block[] = []) {
+// Prisma stand-in: users looked up by id, blocks and follows as rows.
+function setup(users: Row[], blocks: Block[] = [], follows: Follow[] = []) {
   const prisma = {
     users: {
       findUnique: jest.fn(async ({ where }: any) => users.find((u) => u.id === where.id) ?? null),
+    },
+    follows: {
+      count: jest.fn(
+        async ({ where }: any) =>
+          follows.filter((f) => f.follower_id === where.follower_id && f.following_id === where.following_id).length,
+      ),
     },
     blocks: {
       findMany: jest.fn(async ({ where }: any) => {
@@ -85,6 +92,10 @@ const base = (viewerId: string, blocked: string[]) => [
   { OR: [{ hidden_at: null }, { author_id: viewerId }] },
 ];
 const author = { OR: [{ age_tier: { not: AgeTier.JUNIOR } }, { public_profile: true }] };
+// Posts also let through private JUNIORs who follow the viewer.
+const authorFor = (viewerId: string) => ({
+  OR: [...author.OR, { follows_follows_follower_idTousers: { some: { following_id: viewerId } } }],
+});
 // The row rules again on the originals inside quote and repost embeds (a repost embeds a quoting post).
 const withEmbeds = (post: object[]) => {
   const quoting = [...post, { OR: [{ quoted_post_id: null }, { quoted_post: { AND: post } }] }];
@@ -101,7 +112,7 @@ describe('ModerationService.visibilityWhere', () => {
 
   it('adds the author rule, also inside the embeds, for a STANDARD viewer', () => {
     expect(service.visibilityWhere('std', ['x'], AgeTier.STANDARD)).toEqual(
-      withEmbeds([...base('std', ['x']), { users: author }]),
+      withEmbeds([...base('std', ['x']), { users: authorFor('std') }]),
     );
   });
 });
@@ -114,6 +125,7 @@ function matches(where: any, row: any): boolean {
     if (key === 'OR') return cond.some((c: any) => matches(c, row));
     const value = row[key];
     if (cond === null || typeof cond !== 'object') return value === cond;
+    if ('some' in cond) return (value ?? []).some((v: any) => matches(cond.some, v));
     if ('notIn' in cond) return !cond.notIn.includes(value);
     if ('not' in cond) return value !== cond.not;
     return value != null && matches(cond, value);
@@ -158,6 +170,12 @@ describe('ModerationService.visibilityWhere on embedded originals', () => {
     expect(visible(post(other, { quoted: post(std, { hidden: true }) }))).toBe(true);
   });
 
+  it("shows a private JUNIOR's posts only to STANDARD accounts that JUNIOR follows", () => {
+    const followsStd = { ...jr, follows_follows_follower_idTousers: [{ following_id: 'std' }] } as Row;
+    expect(visible(post(jr))).toBe(false);
+    expect(visible(post(followsStd))).toBe(true);
+  });
+
   it('drops a repost of a quote whose original fails', () => {
     expect(visible(post(other, { repostOf: post(other, { quoted: post(blocked) }) }))).toBe(false);
     expect(visible(post(other, { repostOf: post(other, { quoted: post(other) }) }))).toBe(true);
@@ -189,6 +207,16 @@ describe('ModerationService user visibility', () => {
     expect(await service.isUserVisible('jr2', 'jr')).toBe(true);
     expect(await service.isUserVisible('jr', 'std')).toBe(true);
     expect(await service.isUserVisible('std', 'ghost')).toBe(false);
+  });
+
+  it('shows a private JUNIOR to a STANDARD account only while the JUNIOR follows it', async () => {
+    const { service: s } = setup(ALL, [], [{ follower_id: 'jr', following_id: 'std' }]);
+    expect(await s.isUserVisible('std', 'jr')).toBe(true);
+    expect(await s.isUserVisible('std', 'jr2')).toBe(false);
+  });
+
+  it('includeOwnFollowers adds the follow-back clause for the viewer', async () => {
+    expect(await service.usersVisibleTo('std', true)).toEqual(authorFor('std'));
   });
 
   it('assertUserVisible answers not found for a private JUNIOR', async () => {

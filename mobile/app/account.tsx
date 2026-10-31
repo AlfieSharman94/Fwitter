@@ -311,7 +311,7 @@ export default function AccountScreen() {
                 <Text style={styles.privacyHelp}>
                   {profile.public_profile
                     ? "Anyone on Fwitter can find you, follow you and see your posts."
-                    : "Only other 13 to 15 year olds can find you, follow you and see your posts. Turn this on to be visible to everyone."}
+                    : "Only other 13 to 15 year olds can find you. Anyone 16 or over you follow can see your posts and follow you back. Turn this on to be visible to everyone."}
                 </Text>
               </>
             )}

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AgeTier } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ModerationService } from '../moderation/moderation.service';
@@ -90,6 +91,17 @@ export class UsersService {
       },
     });
     void this.notifications.remove({ recipientId: targetId, actorId: viewerId, type: 'FOLLOW' });
+
+    // A STANDARD account could only see and follow a private JUNIOR because the JUNIOR
+    // followed them, so that follow goes when the JUNIOR's does.
+    const [viewer, target] = await Promise.all([
+      this.prisma.users.findUnique({ where: { id: viewerId }, select: { age_tier: true, public_profile: true } }),
+      this.prisma.users.findUnique({ where: { id: targetId }, select: { age_tier: true } }),
+    ]);
+    if (viewer?.age_tier === AgeTier.JUNIOR && !viewer.public_profile && target?.age_tier === AgeTier.STANDARD) {
+      await this.prisma.follows.deleteMany({ where: { follower_id: targetId, following_id: viewerId } });
+      void this.notifications.remove({ recipientId: viewerId, actorId: targetId, type: 'FOLLOW' });
+    }
 
     // Get updated counts
     const [followersCount, followingCount] = await Promise.all([
@@ -203,8 +215,9 @@ export class UsersService {
   > {
     const limitNum = Math.min(Math.max(limit, 1), 50);
     await this.moderation.assertUserVisible(viewerId, targetId);
-    // Members the viewer may not see are left out (counts on the profile stay raw).
-    const visible = await this.moderation.usersVisibleTo(viewerId);
+    // Members the viewer may not see are left out (counts on the profile stay raw). On your
+    // own lists that includes private JUNIORs who follow you, so you can follow them back.
+    const visible = await this.moderation.usersVisibleTo(viewerId, targetId === viewerId);
 
     const follows = await this.prisma.follows.findMany({
       where: { following_id: targetId, ...(visible ? { users_follows_follower_idTousers: visible } : {}) },
@@ -261,7 +274,7 @@ export class UsersService {
   > {
     const limitNum = Math.min(Math.max(limit, 1), 50);
     await this.moderation.assertUserVisible(viewerId, targetId);
-    const visible = await this.moderation.usersVisibleTo(viewerId);
+    const visible = await this.moderation.usersVisibleTo(viewerId, targetId === viewerId);
 
     const follows = await this.prisma.follows.findMany({
       where: { follower_id: targetId, ...(visible ? { users_follows_following_idTousers: visible } : {}) },

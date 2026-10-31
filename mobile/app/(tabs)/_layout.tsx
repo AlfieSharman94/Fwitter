@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/haptic-tab';
 import { colors, fonts } from '../../src/theme/theme';
 import { refreshUnread, useUnreadCount } from '../../src/notifications/unread';
-import { registerPushToken } from '../../src/notifications/push';
+import { askForPushOnce, registerPushToken } from '../../src/notifications/push';
 import { loadMe } from '../../src/auth/me';
 import { refreshDmUnread, useDmUnread } from '../../src/dm/unread';
 
@@ -24,6 +24,7 @@ export default function TabLayout() {
     loadMe();
     refreshAll();
     registerPushToken();
+    askForPushOnce();
     const interval = setInterval(refreshAll, 60_000);
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') refreshAll();

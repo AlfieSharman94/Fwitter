@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { apiFetch } from "../api/client";
 import { colors, fonts, radii } from "../theme/theme";
@@ -26,6 +26,8 @@ function formatDob(iso: string) {
 export function ConsentRequests() {
   const [requests, setRequests] = useState<ConsentRequest[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  // "Link @child to my account", ticked by default; ids in here are unticked.
+  const [noLink, setNoLink] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -45,12 +47,15 @@ export function ConsentRequests() {
   const act = async (r: ConsentRequest, action: "approve" | "decline") => {
     setBusy(r.userId);
     try {
-      await apiFetch(`/users/me/consent-requests/${r.userId}/${action}`, { method: "POST" });
+      await apiFetch(`/users/me/consent-requests/${r.userId}/${action}`, {
+        method: "POST",
+        ...(action === "approve" ? { body: JSON.stringify({ link: !noLink.has(r.userId) }) } : {}),
+      });
       setRequests((prev) => prev.filter((x) => x.userId !== r.userId));
       Alert.alert(
         action === "approve" ? "Approved" : "Account deleted",
         action === "approve"
-          ? `@${r.username} can now use Fwitter.`
+          ? `@${r.username} can now use Fwitter.${noLink.has(r.userId) ? "" : " You can see their activity from the top of Activity."}`
           : `@${r.username}'s account and everything they posted have been removed.`
       );
     } catch (e: any) {
@@ -89,6 +94,24 @@ export function ConsentRequests() {
               Date of birth: <Text style={styles.detailValue}>{formatDob(r.dateOfBirth)}</Text>
             </Text>
           </View>
+          <View style={styles.linkRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkLabel}>Link @{r.username} to my account</Text>
+              <Text style={styles.linkHint}>See their posts, replies, reposts, quotes and new follows. They can see you’re linked.</Text>
+            </View>
+            <Switch
+              value={!noLink.has(r.userId)}
+              onValueChange={(on) =>
+                setNoLink((prev) => {
+                  const next = new Set(prev);
+                  if (on) next.delete(r.userId);
+                  else next.add(r.userId);
+                  return next;
+                })
+              }
+              trackColor={{ true: colors.accent, false: colors.border }}
+            />
+          </View>
           {busy === r.userId ? (
             <ActivityIndicator color={colors.accent} style={styles.spinner} />
           ) : (
@@ -123,6 +146,9 @@ const styles = StyleSheet.create({
   detail: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted },
   detailValue: { fontFamily: fonts.bodyBold, color: colors.text },
   actions: { flexDirection: "row", gap: 10, marginTop: 4 },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  linkLabel: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
+  linkHint: { fontFamily: fonts.body, fontSize: 12, color: colors.textDim, marginTop: 2 },
   button: { flex: 1, height: 44, borderRadius: radii.md, alignItems: "center", justifyContent: "center" },
   approve: { backgroundColor: colors.accent },
   approveText: { fontFamily: fonts.heading, fontSize: 15, color: colors.accentText },

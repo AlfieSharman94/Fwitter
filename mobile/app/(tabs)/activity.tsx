@@ -6,10 +6,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import { getTimeAgo } from "../../src/components/PostCard";
 import { ConsentRequests } from "../../src/components/ConsentRequests";
+import { LinkedShortcuts } from "../../src/components/LinkedShortcuts";
 import { setUnread } from "../../src/notifications/unread";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
-type ActivityType = "REPLY" | "MENTION" | "QUOTE" | "LIKE" | "REPOST" | "FOLLOW" | "WARNING";
+type ActivityType = "REPLY" | "MENTION" | "QUOTE" | "LIKE" | "REPOST" | "FOLLOW" | "WARNING" | "LINK";
 
 type ActivityItem = {
   id: string;
@@ -29,6 +30,7 @@ const COPY: Record<ActivityType, string> = {
   REPOST: "reposted your post",
   FOLLOW: "followed you",
   WARNING: "sent you a warning",
+  LINK: "updated a linked account",
 };
 
 const ICON: Record<ActivityType, { name: React.ComponentProps<typeof Ionicons>["name"]; color: string }> = {
@@ -39,6 +41,7 @@ const ICON: Record<ActivityType, { name: React.ComponentProps<typeof Ionicons>["
   REPOST: { name: "repeat", color: colors.accent },
   FOLLOW: { name: "person-add", color: colors.accent },
   WARNING: { name: "alert-circle", color: colors.warn },
+  LINK: { name: "link", color: colors.accent2 },
 };
 
 export default function ActivityScreen() {
@@ -96,6 +99,7 @@ export default function ActivityScreen() {
 
   const open = (item: ActivityItem) => {
     if (item.type === "WARNING") return; // nothing to open; the note is the message
+    if (item.type === "LINK") return router.push("/linked-accounts");
     if (item.post) router.push(`/posts/${item.post.id}`);
     else router.push(`/users/${item.actor.id}`);
   };
@@ -105,7 +109,7 @@ export default function ActivityScreen() {
     // Warnings come from the moderation team, never attributed to a person.
     const isWarning = item.type === "WARNING";
     const actorName = isWarning ? "Fwitter moderation" : item.actor.display_name;
-    const snippet = isWarning ? item.note : item.post?.content;
+    const snippet = isWarning ? item.note : item.type === "LINK" ? null : item.post?.content;
     return (
       <Pressable style={[styles.row, !item.read_at && styles.rowUnread]} onPress={() => open(item)}>
         <View style={styles.iconColumn}>
@@ -113,7 +117,7 @@ export default function ActivityScreen() {
         </View>
         <View style={styles.body}>
           <View style={styles.actorRow}>
-            <Pressable onPress={isWarning ? undefined : () => router.push(`/users/${item.actor.id}`)} hitSlop={6}>
+            <Pressable onPress={isWarning ? undefined : () => open(item.type === "LINK" ? item : { ...item, post: null })} hitSlop={6}>
               {isWarning ? (
                 <View style={styles.avatarPlaceholder}>
                   <Ionicons name="shield-checkmark" size={16} color={colors.warn} />
@@ -129,7 +133,7 @@ export default function ActivityScreen() {
             <Text style={styles.time}>{getTimeAgo(new Date(item.created_at))}</Text>
           </View>
           <Text style={styles.text}>
-            <Text style={styles.actorName}>{actorName}</Text> {COPY[item.type]}
+            <Text style={styles.actorName}>{actorName}</Text> {item.type === "LINK" && item.note ? item.note : COPY[item.type]}
           </Text>
           {!!snippet && (
             <Text style={styles.snippet} numberOfLines={isWarning ? 6 : 2}>
@@ -163,7 +167,12 @@ export default function ActivityScreen() {
           data={items}
           keyExtractor={(n) => n.id}
           renderItem={renderItem}
-          ListHeaderComponent={<ConsentRequests />}
+          ListHeaderComponent={
+            <>
+              <ConsentRequests />
+              <LinkedShortcuts />
+            </>
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>

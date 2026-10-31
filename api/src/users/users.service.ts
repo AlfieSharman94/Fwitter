@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AgeTier } from '@prisma/client';
+import { calculateAge } from './age-tier.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ModerationService } from '../moderation/moderation.service';
@@ -134,6 +135,8 @@ export class UsersService {
     hasBlockedMe: boolean;
     isVerified: boolean;
     dm: { allowed: boolean; reason: string | null };
+    // Whether the viewer can ask to share their activity with this account (18+ only).
+    link: { status: 'none' | 'PENDING' | 'ACTIVE'; canRequest: boolean };
   }> {
     const targetUser = await this.prisma.users.findUnique({
       where: { id: targetId },
@@ -144,6 +147,7 @@ export class UsersService {
         profile_image_url: true,
         created_at: true,
         verified_at: true,
+        date_of_birth: true,
       },
     });
     if (!targetUser) {
@@ -181,6 +185,16 @@ export class UsersService {
     const isBlocked = blockRows.some((b) => b.blocker_id === viewerId);
     const hasBlockedMe = blockRows.some((b) => b.blocker_id === targetId);
     const dm = isSelf ? { allowed: false, reason: 'self' } : await this.dm.eligibility(viewerId, targetId);
+    const existingLink = isSelf
+      ? null
+      : await this.prisma.account_links.findUnique({
+          where: { sharer_id_viewer_id: { sharer_id: viewerId, viewer_id: targetId } },
+          select: { status: true },
+        });
+    const link = {
+      status: existingLink?.status ?? ('none' as const),
+      canRequest: !isSelf && !existingLink && !isBlocked && !hasBlockedMe && calculateAge(targetUser.date_of_birth) >= 18,
+    };
 
     return {
       id: targetUser.id,
@@ -197,6 +211,7 @@ export class UsersService {
       hasBlockedMe,
       isVerified: !!targetUser.verified_at,
       dm,
+      link,
     };
   }
 

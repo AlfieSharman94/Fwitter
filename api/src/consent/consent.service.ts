@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { PushService } from '../notifications/push.service';
+import { LinksService } from '../links/links.service';
 import { calculateAge } from '../users/age-tier.util';
 import { createConsentToken, hashConsentToken, isConsentTokenShape } from './consent-token';
 import { consentEmail, type ConsentChild } from './consent-pages';
@@ -78,6 +79,7 @@ export class ConsentService {
     private readonly moderation: ModerationService,
     config: ConfigService,
     private readonly push: PushService,
+    private readonly links: LinksService,
   ) {
     this.cognito = new CognitoIdentityProviderClient({ region: config.get<string>('AWS_REGION') ?? 'eu-north-1' });
     this.userPoolId = config.get<string>('COGNITO_USER_POOL_ID') ?? '';
@@ -190,7 +192,8 @@ export class ConsentService {
     }));
   }
 
-  async confirmFor(adultId: string, childId: string, now: Date = new Date()): Promise<void> {
+  // link: the "Link @child to my account" tick box on the approval card.
+  async confirmFor(adultId: string, childId: string, link: boolean, now: Date = new Date()): Promise<void> {
     const email = await this.requirePendingFor(adultId, childId);
     const { count } = await this.prisma.guardian_consents.updateMany({
       where: { user_id: childId, guardian_email: email, confirmed_at: null },
@@ -198,6 +201,7 @@ export class ConsentService {
     });
     if (count === 0) throw new NotFoundException('consent_request_not_found');
     this.moderation.invalidateStatus(childId);
+    if (link) await this.links.linkFromConsent(adultId, childId, now);
   }
 
   async declineFor(adultId: string, childId: string): Promise<void> {

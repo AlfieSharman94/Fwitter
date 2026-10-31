@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AgeTier, Prisma, ReportReason, Role } from '@prisma/client';
+import { AgeTier, LinkStatus, Prisma, ReportReason, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildBannedPattern, containsBannedWord } from './banned-words';
 import { canSeeUser, visibleUsersWhere } from '../users/age-tier.util';
@@ -175,18 +175,20 @@ export class ModerationService {
   }
 
   // Users rows the viewer may see (search, follower lists, mentions); null means everyone.
-  // includeOwnFollowers adds private JUNIORs who follow the viewer, for the viewer's own lists.
+  // includeOwnFollowers adds private JUNIORs who follow the viewer or share with them through a
+  // linked account, for the viewer's own lists.
   async usersVisibleTo(viewerId: string, includeOwnFollowers = false): Promise<Prisma.usersWhereInput | null> {
     return visibleUsersWhere(await this.viewerTier(viewerId), includeOwnFollowers ? viewerId : undefined);
   }
 
   async isUserVisible(viewerId: string, targetId: string): Promise<boolean> {
-    const [tier, target, followsViewer] = await Promise.all([
+    const [tier, target, followsViewer, sharesWithViewer] = await Promise.all([
       this.viewerTier(viewerId),
       this.prisma.users.findUnique({ where: { id: targetId }, select: { age_tier: true, public_profile: true } }),
       this.prisma.follows.count({ where: { follower_id: targetId, following_id: viewerId } }),
+      this.prisma.account_links.count({ where: { sharer_id: targetId, viewer_id: viewerId, status: LinkStatus.ACTIVE } }),
     ]);
-    return !!target && canSeeUser(tier, target, followsViewer > 0);
+    return !!target && canSeeUser(tier, target, followsViewer + sharesWithViewer > 0);
   }
 
   // For user reads and follows: a private JUNIOR looks like it doesn't exist to a STANDARD viewer.

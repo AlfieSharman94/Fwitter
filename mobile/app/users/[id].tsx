@@ -28,6 +28,7 @@ type UserProfile = {
   hasBlockedMe: boolean;
   isVerified: boolean;
   dm: { allowed: boolean; reason: string | null };
+  link: { status: "none" | "PENDING" | "ACTIVE"; canRequest: boolean };
 };
 
 export default function UserProfileScreen() {
@@ -210,6 +211,15 @@ export default function UserProfileScreen() {
   const handleMenu = () => {
     if (!profile || profile.isSelf) return;
     Alert.alert(`@${profile.username}`, undefined, [
+      ...(profile.link?.canRequest
+        ? [
+            {
+              text: "Link my account",
+              onPress: () =>
+                router.push({ pathname: "/link-request", params: { userId: profile.id, username: profile.username } }),
+            },
+          ]
+        : []),
       { text: "Report user", onPress: () => setReportTarget({ userId: profile.id, label: `@${profile.username}` }) },
       profile.isBlocked
         ? { text: "Unblock", onPress: toggleBlock }

@@ -272,6 +272,7 @@ enum NotificationType {
   REPOST
   FOLLOW
   WARNING
+  LINK
 }
 
 /// In-app activity. post_id is the reply/quote/mentioning post for those types and the
@@ -550,4 +551,42 @@ model users {
   guardian_consent                    guardian_consents?
   user_teams                          user_teams[]
   user_topics                         user_topics[]
+  links_as_sharer                     account_links[] @relation("link_sharer")
+  links_as_viewer                     account_links[] @relation("link_viewer")
+}
+
+enum LinkStatus {
+  PENDING
+  ACTIVE
+}
+
+enum LinkShare {
+  POSTS
+  REPLIES
+  REPOSTS
+  QUOTES
+  FOLLOWS
+  MESSAGES
+}
+
+/// Linked accounts: the sharer's chosen activity shows in the viewer's app. The sharer sends
+/// the request (or a parent or guardian links while approving consent); the viewer is 18+.
+/// requested_shares holds an under-16 sharer's request to share less, until the viewer
+/// approves it; empty means no change is waiting.
+model account_links {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharer_id        String      @db.Uuid
+  viewer_id        String      @db.Uuid
+  status           LinkStatus  @default(PENDING)
+  shares           LinkShare[]
+  requested_shares LinkShare[] @default([])
+  created_at       DateTime    @default(now()) @db.Timestamptz(6)
+  accepted_at      DateTime?   @db.Timestamptz(6)
+  /// Set once a sharer linked while under 16 has answered "Stay linked?" at 16.
+  stay_answered_at DateTime?   @db.Timestamptz(6)
+  sharer           users       @relation("link_sharer", fields: [sharer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  viewer           users       @relation("link_viewer", fields: [viewer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([sharer_id, viewer_id])
+  @@index([viewer_id])
 }

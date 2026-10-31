@@ -53,9 +53,10 @@ describe('ModerationService status cache', () => {
 type Row = { id: string; age_tier: AgeTier; public_profile: boolean };
 type Block = { blocker_id: string; blocked_id: string };
 type Follow = { follower_id: string; following_id: string };
+type Link = { sharer_id: string; viewer_id: string };
 
-// Prisma stand-in: users looked up by id, blocks and follows as rows.
-function setup(users: Row[], blocks: Block[] = [], follows: Follow[] = []) {
+// Prisma stand-in: users looked up by id, blocks, follows and active links as rows.
+function setup(users: Row[], blocks: Block[] = [], follows: Follow[] = [], links: Link[] = []) {
   const prisma = {
     users: {
       findUnique: jest.fn(async ({ where }: any) => users.find((u) => u.id === where.id) ?? null),
@@ -64,6 +65,11 @@ function setup(users: Row[], blocks: Block[] = [], follows: Follow[] = []) {
       count: jest.fn(
         async ({ where }: any) =>
           follows.filter((f) => f.follower_id === where.follower_id && f.following_id === where.following_id).length,
+      ),
+    },
+    account_links: {
+      count: jest.fn(
+        async ({ where }: any) => links.filter((l) => l.sharer_id === where.sharer_id && l.viewer_id === where.viewer_id).length,
       ),
     },
     blocks: {
@@ -92,9 +98,13 @@ const base = (viewerId: string, blocked: string[]) => [
   { OR: [{ hidden_at: null }, { author_id: viewerId }] },
 ];
 const author = { OR: [{ age_tier: { not: AgeTier.JUNIOR } }, { public_profile: true }] };
-// Posts also let through private JUNIORs who follow the viewer.
+// Posts also let through private JUNIORs who follow the viewer or share with them through a link.
 const authorFor = (viewerId: string) => ({
-  OR: [...author.OR, { follows_follows_follower_idTousers: { some: { following_id: viewerId } } }],
+  OR: [
+    ...author.OR,
+    { follows_follows_follower_idTousers: { some: { following_id: viewerId } } },
+    { links_as_sharer: { some: { viewer_id: viewerId, status: 'ACTIVE' } } },
+  ],
 });
 // The row rules again on the originals inside quote and repost embeds (a repost embeds a quoting post).
 const withEmbeds = (post: object[]) => {
@@ -215,7 +225,12 @@ describe('ModerationService user visibility', () => {
     expect(await s.isUserVisible('std', 'jr2')).toBe(false);
   });
 
-  it('includeOwnFollowers adds the follow-back clause for the viewer', async () => {
+  it('shows a private JUNIOR to the adult they share with through a linked account', async () => {
+    const { service: s } = setup(ALL, [], [], [{ sharer_id: 'jr', viewer_id: 'std' }]);
+    expect(await s.isUserVisible('std', 'jr')).toBe(true);
+  });
+
+  it('includeOwnFollowers adds the follow-back and link clauses for the viewer', async () => {
     expect(await service.usersVisibleTo('std', true)).toEqual(authorFor('std'));
   });
 

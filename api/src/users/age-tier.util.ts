@@ -1,4 +1,4 @@
-import { AgeTier, Prisma } from '@prisma/client';
+import { AgeTier, LinkStatus, Prisma } from '@prisma/client';
 
 const JUNIOR_MAX_AGE = 15; // 13–15 = JUNIOR, 16+ = STANDARD
 
@@ -20,26 +20,32 @@ export function deriveAgeTier(dob: Date, now: Date = new Date()): AgeTier {
 export type TierVisibility = { age_tier: AgeTier; public_profile: boolean };
 
 // Private by default for 13 to 15s: a STANDARD viewer sees a JUNIOR account only once it has
-// opted in to a public profile, or while the JUNIOR follows that viewer (so they can follow
-// back). Within a tier nothing is hidden, and JUNIOR viewers see STANDARD accounts as before.
-// DMs have their own, stricter rule (DmService.eligibility).
-export function canSeeUser(viewerTier: AgeTier, target: TierVisibility, targetFollowsViewer = false): boolean {
+// opted in to a public profile, while the JUNIOR follows that viewer (so they can follow back),
+// or while the JUNIOR shares their activity with that viewer through a linked account. Within a
+// tier nothing is hidden, and JUNIOR viewers see STANDARD accounts as before. DMs have their
+// own, stricter rule (DmService.eligibility).
+export function canSeeUser(viewerTier: AgeTier, target: TierVisibility, connectedToViewer = false): boolean {
   if (viewerTier === AgeTier.JUNIOR || target.age_tier !== AgeTier.JUNIOR) return true;
-  return target.public_profile || targetFollowsViewer;
+  return target.public_profile || connectedToViewer;
 }
 
 /**
  * The same rule as a Prisma `where` on users; null when the viewer may see everyone. Without
- * followersOf the follow-back exception is left out, which is what discovery (search, mentions,
- * other people's lists) wants.
+ * connectedTo the follow-back and linked-account exceptions are left out, which is what
+ * discovery (search, mentions, other people's lists) wants.
  */
-export function visibleUsersWhere(viewerTier: AgeTier, followersOf?: string): Prisma.usersWhereInput | null {
+export function visibleUsersWhere(viewerTier: AgeTier, connectedTo?: string): Prisma.usersWhereInput | null {
   if (viewerTier === AgeTier.JUNIOR) return null;
   return {
     OR: [
       { age_tier: { not: AgeTier.JUNIOR } },
       { public_profile: true },
-      ...(followersOf ? [{ follows_follows_follower_idTousers: { some: { following_id: followersOf } } }] : []),
+      ...(connectedTo
+        ? [
+            { follows_follows_follower_idTousers: { some: { following_id: connectedTo } } },
+            { links_as_sharer: { some: { viewer_id: connectedTo, status: LinkStatus.ACTIVE } } },
+          ]
+        : []),
     ],
   };
 }

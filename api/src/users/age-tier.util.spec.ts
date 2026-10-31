@@ -58,6 +58,7 @@ describe('canSeeUser (private by default for 13 to 15s)', () => {
         { age_tier: { not: AgeTier.JUNIOR } },
         { public_profile: true },
         { follows_follows_follower_idTousers: { some: { following_id: 'me' } } },
+        { links_as_sharer: { some: { viewer_id: 'me', status: 'ACTIVE' } } },
       ],
     });
   });

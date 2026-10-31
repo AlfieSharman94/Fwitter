@@ -9,7 +9,7 @@ export type NotifyArgs = {
   actorId: string;
   type: NotificationType;
   postId?: string | null;
-  // WARNING only: what the moderator wrote.
+  // WARNING: what the moderator wrote. LINK: what happened, after the actor's name.
   note?: string | null;
 };
 
@@ -21,6 +21,7 @@ const VERB: Record<NotificationType, string> = {
   REPOST: 'reposted your post',
   FOLLOW: 'followed you',
   WARNING: 'sent you a warning',
+  LINK: 'updated a linked account',
 };
 
 @Injectable()
@@ -44,7 +45,9 @@ export class NotificationsService {
       // STANDARD account's post or profile).
       if (args.type !== 'WARNING') {
         if (await this.moderation.isBlockedEitherWay(args.recipientId, args.actorId)) return;
-        if (!(await this.moderation.isUserVisible(args.recipientId, args.actorId))) return;
+        // Linked accounts are a private arrangement between the two people, so a private
+        // JUNIOR's link request still reaches the adult it was sent to.
+        if (args.type !== 'LINK' && !(await this.moderation.isUserVisible(args.recipientId, args.actorId))) return;
       }
       const { count } = await this.prisma.notifications.createMany({
         data: [
@@ -74,10 +77,10 @@ export class NotificationsService {
         where: { id: args.actorId },
         select: { display_name: true },
       });
-      const url = args.postId ? `/posts/${args.postId}` : `/users/${args.actorId}`;
+      const url = args.type === 'LINK' ? '/linked-accounts' : args.postId ? `/posts/${args.postId}` : `/users/${args.actorId}`;
       await this.push.sendToUser(args.recipientId, {
         title: 'Fwitter',
-        body: `${actor?.display_name ?? 'Someone'} ${VERB[args.type]}`,
+        body: `${actor?.display_name ?? 'Someone'} ${args.type === 'LINK' && args.note ? args.note : VERB[args.type]}`,
         data: { url, type: args.type },
       });
     } catch (e: any) {

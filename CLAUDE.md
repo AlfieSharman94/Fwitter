@@ -20,13 +20,13 @@ docs/           REVIEW_AND_ROADMAP.md (review, security, roadmap), SETUP_CREDENT
 ```
 
 ### API modules (`api/src/`)
-auth (Cognito JWT guard, roles, `/auth/username-available`, `/auth/email-available`), users (profile, follows, blocks, guardian email, account deletion), posts (create, replies, likes, bookmarks, reposts, quotes, polls, mentions, hashtags), feed (Squad and 12th Man, ranking), hashtags, search, teams, topics, matches (football-data.org fixtures sync), media (S3 presigned uploads + Rekognition scan), notifications (in-app + Expo push), dm, moderation (visibility filter, reports, auto-hide, banned words), admin (dashboard API), consent (guardian consent page and tokens), email (SES).
+auth (Cognito JWT guard, roles, `/auth/username-available`, `/auth/email-available`), users (profile, follows, blocks, guardian email, account deletion), posts (create, replies, likes, bookmarks, reposts, quotes, polls, mentions, hashtags), feed (Squad and 12th Man, ranking), hashtags, search, teams, topics, matches (football-data.org fixtures sync), media (S3 presigned uploads + Rekognition scan), notifications (in-app + Expo push), dm, moderation (visibility filter, reports, auto-hide, banned words), admin (dashboard API), consent (guardian consent page and tokens, in-app approval), links (linked accounts), email (SES).
 
 ### Mobile (`mobile/app/`, file-based routes)
 - `(auth)/`: welcome, sign-in, sign-up, confirm-signup, forgot-password, reset-password
 - `(onboarding)/`: username, personal-details (name, email, password, date of birth, guardian email for 13 to 15), team-selection, topics. The Cognito account is created at the end of `topics.tsx`.
 - `(tabs)/`: Home (`index.tsx`, Squad and 12th Man), Activity, Messages, Explore
-- Standalone: compose, posts/[id], users/[id] (+ followers, following), dm/[id], hashtags/[tag], matches, bookmarks, account, settings, consent-pending, welcome-success
+- Standalone: compose, posts/[id], users/[id] (+ followers, following), dm/[id], hashtags/[tag], matches, bookmarks, account, settings, linked-accounts, link-request, linked/[id], consent-pending, welcome-success
 - Shared code in `mobile/src/`: `api/client.ts` (`apiFetch`, adds the token, handles 401/403), `auth/` (AuthProvider, Amplify helpers, session events), `components/PostCard.tsx`, `feed/` (engagement, optimistic feed events), `theme/theme.ts` (all colours and fonts)
 - The gate in `app/_layout.tsx` routes: signed out to Welcome, signed in without a profile to onboarding, pending guardian consent to consent-pending, otherwise to the tabs.
 
@@ -35,6 +35,7 @@ auth (Cognito JWT guard, roles, `/auth/username-available`, `/auth/email-availab
 - **Feeds.** Squad shows posts from people you follow (and your own). 12th Man shows posts tagged with your clubs and topics from anyone, excluding your own, with "For you" (heuristic ranking: engagement times affinity, decayed by age; no machine learning) and "Latest". Code: `api/src/feed/`.
 - **Counts.** Like, repost and poll counts are only visible to the post's author.
 - **Juniors.** A JUNIOR account is blocked (403 `consent_pending`) until a parent or guardian confirms, through the emailed link (`/consent/:token`, 7 days, single use) or from the Activity tab of their own 18+ account with that email. Decline deletes the account including the Cognito login. JUNIOR profiles are private by default: not discoverable by STANDARD accounts, except that a STANDARD account can see and follow back a JUNIOR who follows it. DMs only between mutual follows in the same age tier.
+- **Linked accounts.** `account_links`: the sharer sends the request and picks what to share (posts, replies, reposts, quotes, follows, messages); the viewer must be 18+ and accepts. A parent or guardian approving consent in the app can link straight away (everything but messages). Messages show only the sharer's own words and the other person's username. Under 16: at most 2 links, sharing less needs the viewer's approval, only the viewer can unlink; at 16 the app asks "Stay linked?". An active link makes a private JUNIOR visible to that viewer. Code: `api/src/links/`, `mobile/app/linked-accounts.tsx`.
 - **Moderation.** Every post query goes through `ModerationService.visibility`. Three distinct reporters auto-hide a post. Banned words block at submit. Suspended and banned users are refused by the JWT guard. Moderators use the web dashboard, see reported DMs only, and every action is audited.
 - **Identity.** Login lives in Cognito; the profile lives in Postgres, linked by `cognito_sub`, with the email copied in. `/auth/email-available` checks both. If the database is rebuilt, existing Cognito logins resume onboarding to recreate their profile.
 
@@ -78,10 +79,10 @@ Login and register
 
 Child accounts
 6. Restyle the Cognito verification-code email. Decided: the user changes the subject and body in the Cognito console (Messaging, Message templates, Verification message); subject "Your Fwitter code". The sender stays Cognito's until SES is live.
-7. ~~Let a parent or guardian approve a child from inside the app as well as the web page.~~ Done (`feat/feedback-round-3`): an 18+ account whose email is the guardian email gets a push and an Approve / Decline card at the top of Activity (`GET /users/me/consent-requests`, `POST .../:userId/approve|decline`); the email, web page and card show the child's name and date of birth. Still to do, with linked accounts: 7a, a "Link @child to my account" tick box on approval, ticked by default.
+7. ~~Let a parent or guardian approve a child from inside the app as well as the web page.~~ Done (`feat/feedback-round-3`, 7a in `feat/linked-accounts`): an 18+ account whose email is the guardian email gets a push and an Approve / Decline card at the top of Activity, with a "Link @child to my account" switch, on by default. The email, web page and card show the child's name and date of birth.
 8. ~~On the consent web page, put the delete-account tick box under the "No, delete the account" button.~~ Done (`fix/feedback-round-2`).
 9. ~~Should a pending JUNIOR account get read-only access?~~ Decided: no, it stays on the waiting screen (which already has resend, change email and log out).
-10. Linked accounts. Decided:
+10. ~~Linked accounts.~~ Done (`feat/linked-accounts`), as decided below. Settings > Linked accounts; "Link my account" in a profile's menu; "See @name's activity" at the top of Activity.
     - Optional. The person whose activity is shared sends the request; the other side accepts. A child can send a request to an adult; an adult can send one only to another adult, so adults cannot start links with children (exception: 7a). The accepting side must be 18+ by date of birth.
     - The sender picks what is shared: posts, replies, reposts, quotes, new follows, messages. The adult sees the choices before accepting. Shared activity appears in the adult's Activity tab.
     - Messages: the adult sees only the child's own messages and the other person's username, never the other person's messages.
@@ -101,5 +102,8 @@ Questions from the user to answer
 14. ~~Adults and child accounts.~~ Done (`feat/feedback-round-3`): a private JUNIOR is visible to a STANDARD account while the JUNIOR follows it (profile, posts, own followers list, notifications, follow back); search, mentions and other people's lists still hide them. When the JUNIOR unfollows, the adult's follow is removed. DMs stay same-tier only.
 15. ~~Explain how 12th Man works.~~ Answered (see "Feeds" above).
 16. ~~Permissions.~~ Done (`feat/feedback-round-3`): the first time the tabs open, an alert asks "Turn on notifications?" and only Yes triggers the iOS prompt (once per install). Photo access is still asked when a photo is first added.
+
+Found while building linked accounts
+17. `users.age_tier` is set from the date of birth at sign-up and never updated, so a JUNIOR stays JUNIOR after turning 16 (private by default, same-tier DMs). Linked accounts use the date of birth directly. Needs a daily job or a check on sign-in to move 16-year-olds to STANDARD; decide whether their profile then stays private.
 
 Also pending outside the code: SES for consent emails, Railway backups, privacy policy URL and external TestFlight review.

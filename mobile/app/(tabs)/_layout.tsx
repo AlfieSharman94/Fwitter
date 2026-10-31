@@ -9,6 +9,7 @@ import { refreshUnread, useUnreadCount } from '../../src/notifications/unread';
 import { askForPushOnce, registerPushToken } from '../../src/notifications/push';
 import { loadMe } from '../../src/auth/me';
 import { refreshDmUnread, useDmUnread } from '../../src/dm/unread';
+import { askStayLinked } from '../../src/links/stayPrompt';
 
 export default function TabLayout() {
   const unread = useUnreadCount();
@@ -25,6 +26,7 @@ export default function TabLayout() {
     refreshAll();
     registerPushToken();
     askForPushOnce();
+    askStayLinked();
     const interval = setInterval(refreshAll, 60_000);
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') refreshAll();

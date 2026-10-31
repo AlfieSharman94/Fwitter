@@ -16,6 +16,7 @@ import { UsersService } from './users.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { MediaService } from '../media/media.service';
 import { ConsentService } from '../consent/consent.service';
+import { ConsentApproveDto } from '../links/dto/link.dto';
 import { isConsentPending } from '../consent/consent-status';
 
 @Controller('users')
@@ -234,9 +235,13 @@ export class UsersController {
 
   @Post('me/consent-requests/:userId/approve')
   @UseGuards(JwtAuthGuard)
-  async approveConsent(@CurrentUser() user: { sub: string }, @Param('userId', ParseUUIDPipe) childId: string) {
+  async approveConsent(
+    @CurrentUser() user: { sub: string },
+    @Param('userId', ParseUUIDPipe) childId: string,
+    @Body() dto: ConsentApproveDto,
+  ) {
     const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
-    await this.consent.confirmFor(viewerId, childId);
+    await this.consent.confirmFor(viewerId, childId, !!dto.link);
     return { ok: true };
   }
 

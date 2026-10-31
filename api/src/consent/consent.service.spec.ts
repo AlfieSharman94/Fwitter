@@ -5,6 +5,7 @@ import { CONSENT_TOKEN_TTL_MS, hashConsentToken } from './consent-token';
 
 // expo-server-sdk (pulled in through the push service) is ESM-only.
 jest.mock('../notifications/push.service', () => ({ PushService: class {} }));
+jest.mock('../links/links.service', () => ({ LinksService: class {} }));
 
 const NOW = new Date('2026-10-23T12:00:00.000Z');
 const LATER = new Date(NOW.getTime() + 2 * 60_000);
@@ -81,10 +82,11 @@ function makeService(dbUser: ReturnType<typeof user> | null, tokenRow: Row | nul
   const env: Record<string, string> = { AWS_REGION: 'eu-north-1', COGNITO_USER_POOL_ID: 'pool-1', PUBLIC_BASE_URL: 'https://api.test/' };
   const config = { get: (key: string) => env[key] };
   const push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
-  const service = new ConsentService(prisma as any, email as any, moderation as any, config as any, push as any);
+  const links = { linkFromConsent: jest.fn().mockResolvedValue(undefined) };
+  const service = new ConsentService(prisma as any, email as any, moderation as any, config as any, push as any, links as any);
   const cognito = { send: jest.fn().mockResolvedValue({}) };
   (service as any).cognito = cognito;
-  return { service, prisma, email, moderation, cognito, push };
+  return { service, prisma, email, moderation, cognito, push, links };
 }
 
 function sentLink(email: { send: jest.Mock }): string {
@@ -354,7 +356,7 @@ describe('ConsentService from the parent or guardian account', () => {
 
   it('confirms only a pending child who gave this email, even after the link expired', async () => {
     const { service, prisma, moderation } = forAdult(adult, row({ token_expires_at: new Date(NOW.getTime() - 1) }));
-    await service.confirmFor('a1', 'u1', NOW);
+    await service.confirmFor('a1', 'u1', false, NOW);
     expect(prisma.guardian_consents.updateMany).toHaveBeenCalledWith({
       where: { user_id: 'u1', guardian_email: 'parent@example.com', confirmed_at: null },
       data: { confirmed_at: NOW, token_hash: null, token_expires_at: null },
@@ -362,9 +364,15 @@ describe('ConsentService from the parent or guardian account', () => {
     expect(moderation.invalidateStatus).toHaveBeenCalledWith('u1');
 
     const other = forAdult(adult, row({ guardian_email: 'someone@example.com' }));
-    await expect(other.service.confirmFor('a1', 'u1', NOW)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(other.service.confirmFor('a1', 'u1', false, NOW)).rejects.toBeInstanceOf(NotFoundException);
     const done = forAdult(adult, row({ confirmed_at: NOW }));
-    await expect(done.service.confirmFor('a1', 'u1', NOW)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(done.service.confirmFor('a1', 'u1', false, NOW)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('links the accounts when the tick box is on', async () => {
+    const { service, links } = forAdult(adult);
+    await service.confirmFor('a1', 'u1', true, NOW);
+    expect(links.linkFromConsent).toHaveBeenCalledWith('a1', 'u1', NOW);
   });
 
   it('declining deletes the child account and its login', async () => {

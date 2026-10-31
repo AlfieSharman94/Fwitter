@@ -43,6 +43,14 @@ export default function SettingsScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
           </Pressable>
 
+          <Pressable style={styles.settingItem} onPress={() => router.push("/linked-accounts")}>
+            <View style={styles.settingItemContent}>
+              <Ionicons name="link" size={24} color={colors.text} />
+              <Text style={[styles.settingItemText, styles.settingItemTextEnabled]}>Linked accounts</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
+          </Pressable>
+
           <Pressable style={styles.settingItem} disabled>
             <View style={styles.settingItemContent}>
               <Ionicons name="lock-closed" size={24} color={colors.textDim} />

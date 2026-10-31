@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../../src/api/client";
 import { getTimeAgo } from "../../src/components/PostCard";
+import { ConsentRequests } from "../../src/components/ConsentRequests";
 import { setUnread } from "../../src/notifications/unread";
 import { colors, fonts, radii } from "../../src/theme/theme";
 
@@ -162,6 +163,7 @@ export default function ActivityScreen() {
           data={items}
           keyExtractor={(n) => n.id}
           renderItem={renderItem}
+          ListHeaderComponent={<ConsentRequests />}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>

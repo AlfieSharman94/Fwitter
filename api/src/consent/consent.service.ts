@@ -13,13 +13,26 @@ import { AgeTier, ModerationAction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { ModerationService } from '../moderation/moderation.service';
+import { PushService } from '../notifications/push.service';
+import { calculateAge } from '../users/age-tier.util';
 import { createConsentToken, hashConsentToken, isConsentTokenShape } from './consent-token';
-import { consentEmail } from './consent-pages';
+import { consentEmail, type ConsentChild } from './consent-pages';
 
 const RESEND_COOLDOWN_MS = 60_000;
 
 export type ConsentPublic = { guardian_email: string; sent_at: Date | null; confirmed_at: Date | null };
-export type ConsentLookup = { state: 'valid'; username: string } | { state: 'expired' } | { state: 'invalid' };
+export type ConsentLookup = ({ state: 'valid' } & ConsentChild) | { state: 'expired' } | { state: 'invalid' };
+export type ConsentRequest = {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  dateOfBirth: string;
+  requestedAt: Date | null;
+};
+
+// Approving in the app is for the parent or guardian's own adult account.
+const APPROVER_MIN_AGE = 18;
 export type ConsentOutcome = 'confirmed' | 'deleted' | 'expired' | 'invalid' | 'error';
 
 type ConsentRow = {
@@ -33,6 +46,8 @@ type ConsentRow = {
 type ConsentUser = {
   id: string;
   username: string;
+  display_name: string;
+  date_of_birth: Date;
   email: string;
   age_tier: AgeTier;
   cognito_sub: string | null;
@@ -42,6 +57,8 @@ type ConsentUser = {
 const userSelect = {
   id: true,
   username: true,
+  display_name: true,
+  date_of_birth: true,
   email: true,
   age_tier: true,
   cognito_sub: true,
@@ -60,6 +77,7 @@ export class ConsentService {
     private readonly email: EmailService,
     private readonly moderation: ModerationService,
     config: ConfigService,
+    private readonly push: PushService,
   ) {
     this.cognito = new CognitoIdentityProviderClient({ region: config.get<string>('AWS_REGION') ?? 'eu-north-1' });
     this.userPoolId = config.get<string>('COGNITO_USER_POOL_ID') ?? '';
@@ -123,7 +141,7 @@ export class ConsentService {
     const row = await this.findByToken(token);
     if (!row) return { state: 'invalid' };
     if (this.expired(row, now)) return { state: 'expired' };
-    return { state: 'valid', username: row.users.username };
+    return { state: 'valid', ...childOf(row.users) };
   }
 
   async confirm(token: string, now: Date = new Date()): Promise<ConsentOutcome> {
@@ -140,14 +158,67 @@ export class ConsentService {
     return 'confirmed';
   }
 
-  // The guardian does not consent: the account goes, as it would with DELETE /users/me, plus
-  // the Cognito login (the child has no session to do it from). Cognito first, so a failure
-  // leaves nothing half-deleted; the account simply stays locked and the link stays valid.
   async decline(token: string, now: Date = new Date()): Promise<ConsentOutcome> {
     const row = await this.findByToken(token);
     if (!row) return 'invalid';
     if (this.expired(row, now)) return 'expired';
-    const user = row.users;
+    return this.deleteChild(row.users, row.guardian_email);
+  }
+
+  // ---- From the parent or guardian's own account (authenticated) -----------
+
+  // Pending children who gave this adult's email. The emailed link's 7-day expiry doesn't
+  // apply here: the signed-in account is the proof, not the token.
+  async pendingFor(adultId: string): Promise<ConsentRequest[]> {
+    const email = await this.approverEmail(adultId);
+    if (!email) return [];
+    const rows = await this.prisma.guardian_consents.findMany({
+      where: { guardian_email: email, confirmed_at: null, sent_at: { not: null } },
+      orderBy: { sent_at: 'desc' },
+      select: {
+        sent_at: true,
+        users: { select: { id: true, username: true, display_name: true, profile_image_url: true, date_of_birth: true } },
+      },
+    });
+    return rows.map((r) => ({
+      userId: r.users.id,
+      username: r.users.username,
+      displayName: r.users.display_name,
+      avatarUrl: r.users.profile_image_url,
+      dateOfBirth: r.users.date_of_birth.toISOString().slice(0, 10),
+      requestedAt: r.sent_at,
+    }));
+  }
+
+  async confirmFor(adultId: string, childId: string, now: Date = new Date()): Promise<void> {
+    const email = await this.requirePendingFor(adultId, childId);
+    const { count } = await this.prisma.guardian_consents.updateMany({
+      where: { user_id: childId, guardian_email: email, confirmed_at: null },
+      data: { confirmed_at: now, token_hash: null, token_expires_at: null },
+    });
+    if (count === 0) throw new NotFoundException('consent_request_not_found');
+    this.moderation.invalidateStatus(childId);
+  }
+
+  async declineFor(adultId: string, childId: string): Promise<void> {
+    const email = await this.requirePendingFor(adultId, childId);
+    const child = await this.prisma.users.findUnique({
+      where: { id: childId },
+      select: { id: true, username: true, email: true, cognito_sub: true },
+    });
+    if (!child) throw new NotFoundException('consent_request_not_found');
+    if ((await this.deleteChild(child, email)) === 'error') throw new ServiceUnavailableException('consent_decline_failed');
+  }
+
+  // ---- Internals -----------------------------------------------------------
+
+  // The parent or guardian does not consent: the account goes, as it would with DELETE
+  // /users/me, plus the Cognito login (the child has no session to do it from). Cognito first,
+  // so a failure leaves nothing half-deleted; the account simply stays locked.
+  private async deleteChild(
+    user: { id: string; username: string; email: string; cognito_sub: string | null },
+    guardianEmail: string,
+  ): Promise<ConsentOutcome> {
     try {
       await this.deleteCognitoUser(user);
     } catch (e) {
@@ -157,7 +228,7 @@ export class ConsentService {
     await this.prisma.$transaction([
       // Evidence that survives the cascade: the target would be nulled with the user anyway.
       this.prisma.moderation_actions.create({
-        data: { action: ModerationAction.GUARDIAN_DELETE_USER, note: `guardian ${row.guardian_email} declined consent for @${user.username}` },
+        data: { action: ModerationAction.GUARDIAN_DELETE_USER, note: `guardian ${guardianEmail} declined consent for @${user.username}` },
       }),
       this.prisma.users.delete({ where: { id: user.id } }),
     ]);
@@ -165,7 +236,38 @@ export class ConsentService {
     return 'deleted';
   }
 
-  // ---- Internals -----------------------------------------------------------
+  // The adult's email, or null when the account is too young to approve.
+  private async approverEmail(adultId: string): Promise<string | null> {
+    const adult = await this.prisma.users.findUnique({ where: { id: adultId }, select: { email: true, date_of_birth: true } });
+    if (!adult || calculateAge(adult.date_of_birth) < APPROVER_MIN_AGE) return null;
+    return adult.email.trim().toLowerCase();
+  }
+
+  private async requirePendingFor(adultId: string, childId: string): Promise<string> {
+    const email = await this.approverEmail(adultId);
+    const row = email ? await this.prisma.guardian_consents.findUnique({ where: { user_id: childId } }) : null;
+    if (!email || !row || row.guardian_email !== email || row.confirmed_at) throw new NotFoundException('consent_request_not_found');
+    return email;
+  }
+
+  // Best effort: the email is what counts, the push only helps when the parent or guardian
+  // already has an account here.
+  private async notifyApprover(child: ConsentUser, guardianEmail: string) {
+    try {
+      const adult = await this.prisma.users.findFirst({
+        where: { email: { equals: guardianEmail, mode: 'insensitive' } },
+        select: { id: true, date_of_birth: true },
+      });
+      if (!adult || calculateAge(adult.date_of_birth) < APPROVER_MIN_AGE) return;
+      await this.push.sendToUser(adult.id, {
+        title: `@${child.username} wants to join Fwitter`,
+        body: 'They gave your email as their parent or guardian. Tap to check their details and approve.',
+        data: { url: '/(tabs)/activity', type: 'CONSENT_REQUEST' },
+      });
+    } catch (e) {
+      this.logger.warn(`consent push for @${child.username} failed: ${(e as Error)?.message ?? e}`);
+    }
+  }
 
   private async requireUser(userId: string): Promise<ConsentUser> {
     const user = await this.prisma.users.findUnique({ where: { id: userId }, select: userSelect });
@@ -181,12 +283,13 @@ export class ConsentService {
     });
     const link = `${this.baseUrl}/consent/${token}`;
     try {
-      await this.email.send({ to: guardianEmail, ...consentEmail({ username: user.username, link }) });
+      await this.email.send({ to: guardianEmail, ...consentEmail({ ...childOf(user), link }) });
     } catch (e) {
       this.logger.error(`consent email to ${guardianEmail} failed: ${(e as Error)?.message ?? e}`);
       throw new ServiceUnavailableException('consent_email_failed');
     }
     const row = await this.prisma.guardian_consents.update({ where: { user_id: user.id }, data: { sent_at: now } });
+    void this.notifyApprover(user, guardianEmail);
     return this.toPublic(row) as ConsentPublic;
   }
 
@@ -194,7 +297,9 @@ export class ConsentService {
     if (!isConsentTokenShape(token)) return null;
     return this.prisma.guardian_consents.findUnique({
       where: { token_hash: hashConsentToken(token) },
-      include: { users: { select: { id: true, username: true, email: true, cognito_sub: true } } },
+      include: {
+        users: { select: { id: true, username: true, display_name: true, date_of_birth: true, email: true, cognito_sub: true } },
+      },
     });
   }
 
@@ -217,4 +322,8 @@ export class ConsentService {
     }
     this.logger.warn(`guardian decline: no Cognito user found for @${user.username}; treating as already deleted`);
   }
+}
+
+function childOf(u: { username: string; display_name: string; date_of_birth: Date }): ConsentChild {
+  return { username: u.username, displayName: u.display_name, dateOfBirth: u.date_of_birth };
 }

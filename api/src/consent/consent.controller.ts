@@ -15,7 +15,7 @@ export class ConsentController {
   async review(@Param('token') token: string) {
     const found = await this.consent.lookup(token);
     if (found.state !== 'valid') return messagePage(found.state);
-    return reviewPage({ username: found.username, token });
+    return reviewPage({ ...found, token });
   }
 
   @Post(':token/confirm')

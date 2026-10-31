@@ -34,7 +34,7 @@ auth (Cognito JWT guard, roles, `/auth/username-available`, `/auth/email-availab
 
 - **Feeds.** Squad shows posts from people you follow (and your own). 12th Man shows posts tagged with your clubs and topics from anyone, excluding your own, with "For you" (heuristic ranking: engagement times affinity, decayed by age; no machine learning) and "Latest". Code: `api/src/feed/`.
 - **Counts.** Like, repost and poll counts are only visible to the post's author.
-- **Juniors.** A JUNIOR account is blocked (403 `consent_pending`) until a guardian confirms through the emailed link (`/consent/:token`, 7 days, single use; decline deletes the account including the Cognito login). JUNIOR profiles are private by default: not discoverable by STANDARD accounts. DMs only between mutual follows in the same age tier.
+- **Juniors.** A JUNIOR account is blocked (403 `consent_pending`) until a parent or guardian confirms, through the emailed link (`/consent/:token`, 7 days, single use) or from the Activity tab of their own 18+ account with that email. Decline deletes the account including the Cognito login. JUNIOR profiles are private by default: not discoverable by STANDARD accounts, except that a STANDARD account can see and follow back a JUNIOR who follows it. DMs only between mutual follows in the same age tier.
 - **Moderation.** Every post query goes through `ModerationService.visibility`. Three distinct reporters auto-hide a post. Banned words block at submit. Suspended and banned users are refused by the JWT guard. Moderators use the web dashboard, see reported DMs only, and every action is audited.
 - **Identity.** Login lives in Cognito; the profile lives in Postgres, linked by `cognito_sub`, with the email copied in. `/auth/email-available` checks both. If the database is rebuilt, existing Cognito logins resume onboarding to recreate their profile.
 
@@ -78,7 +78,7 @@ Login and register
 
 Child accounts
 6. Restyle the Cognito verification-code email. Decided: the user changes the subject and body in the Cognito console (Messaging, Message templates, Verification message); subject "Your Fwitter code". The sender stays Cognito's until SES is live.
-7. Let a parent or guardian approve a child from inside the app as well as the web page. Decided: an approval card in the Activity tab of the adult account whose email is the guardian email, plus a push; the email, web page and card show the child's date of birth to check. Frontend copy always says "parent or guardian". 7a: approving in the app offers a "Link @child to my account" tick box, ticked by default (the one case where the adult starts a link; see 10).
+7. ~~Let a parent or guardian approve a child from inside the app as well as the web page.~~ Done (`feat/feedback-round-3`): an 18+ account whose email is the guardian email gets a push and an Approve / Decline card at the top of Activity (`GET /users/me/consent-requests`, `POST .../:userId/approve|decline`); the email, web page and card show the child's name and date of birth. Still to do, with linked accounts: 7a, a "Link @child to my account" tick box on approval, ticked by default.
 8. ~~On the consent web page, put the delete-account tick box under the "No, delete the account" button.~~ Done (`fix/feedback-round-2`).
 9. ~~Should a pending JUNIOR account get read-only access?~~ Decided: no, it stays on the waiting screen (which already has resend, change email and log out).
 10. Linked accounts. Decided:
@@ -98,8 +98,8 @@ Moderation
 13. ~~The banned-word error on compose is below the fold.~~ Done: errors from posting now show as a dismissable alert (`fix/feedback-round-2`).
 
 Questions from the user to answer
-14. Adults and child accounts. Explained: JUNIOR profiles are private by default. Decided: a JUNIOR becomes visible to an adult once the junior follows that adult (followers list, new-follower notification, follow back); search and other lists still hide them. If the junior unfollows, the adult's follow is removed and the junior is hidden again. DMs stay same-tier only.
+14. ~~Adults and child accounts.~~ Done (`feat/feedback-round-3`): a private JUNIOR is visible to a STANDARD account while the JUNIOR follows it (profile, posts, own followers list, notifications, follow back); search, mentions and other people's lists still hide them. When the JUNIOR unfollows, the adult's follow is removed. DMs stay same-tier only.
 15. ~~Explain how 12th Man works.~~ Answered (see "Feeds" above).
-16. Permissions. Decided: photo access stays as it is (asked when a photo is first added). Notifications: a Fwitter screen asks "Turn on notifications?" the first time someone reaches the tabs, and the iOS prompt only appears if they tap Yes.
+16. ~~Permissions.~~ Done (`feat/feedback-round-3`): the first time the tabs open, an alert asks "Turn on notifications?" and only Yes triggers the iOS prompt (once per install). Photo access is still asked when a photo is first added.
 
 Also pending outside the code: SES for consent emails, Railway backups, privacy policy URL and external TestFlight review.

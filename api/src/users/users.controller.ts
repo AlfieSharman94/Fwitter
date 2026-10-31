@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AgeTier } from '@prisma/client';
 import { feedPostSelect, toFeedPost } from '../posts/post-shape';
@@ -222,6 +222,31 @@ export class UsersController {
     const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
     const consent = await this.consent.resend(viewerId);
     return { ok: true, consent };
+  }
+
+  // The parent or guardian side: children who gave this account's email and are waiting.
+  @Get('me/consent-requests')
+  @UseGuards(JwtAuthGuard)
+  async consentRequests(@CurrentUser() user: { sub: string }) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
+    return { requests: await this.consent.pendingFor(viewerId) };
+  }
+
+  @Post('me/consent-requests/:userId/approve')
+  @UseGuards(JwtAuthGuard)
+  async approveConsent(@CurrentUser() user: { sub: string }, @Param('userId', ParseUUIDPipe) childId: string) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
+    await this.consent.confirmFor(viewerId, childId);
+    return { ok: true };
+  }
+
+  @Post('me/consent-requests/:userId/decline')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async declineConsent(@CurrentUser() user: { sub: string }, @Param('userId', ParseUUIDPipe) childId: string) {
+    const viewerId = await this.usersService.getUserIdFromCognitoSub(user.sub);
+    await this.consent.declineFor(viewerId, childId);
+    return { ok: true };
   }
 
   @Put('me/teams')

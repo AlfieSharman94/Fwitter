@@ -3,6 +3,9 @@ import { AdminDeleteUserCommand } from '@aws-sdk/client-cognito-identity-provide
 import { ConsentService } from './consent.service';
 import { CONSENT_TOKEN_TTL_MS, hashConsentToken } from './consent-token';
 
+// expo-server-sdk (pulled in through the push service) is ESM-only.
+jest.mock('../notifications/push.service', () => ({ PushService: class {} }));
+
 const NOW = new Date('2026-10-23T12:00:00.000Z');
 const LATER = new Date(NOW.getTime() + 2 * 60_000);
 const VALID_TOKEN = 'a'.repeat(43);
@@ -32,6 +35,8 @@ function user(overrides: Record<string, unknown> = {}) {
   return {
     id: 'u1',
     username: 'kid',
+    display_name: 'Kid Name',
+    date_of_birth: new Date('2012-07-14T00:00:00.000Z'),
     email: 'kid@example.com',
     age_tier: 'JUNIOR',
     cognito_sub: 'sub-1',
@@ -44,14 +49,28 @@ function makeService(dbUser: ReturnType<typeof user> | null, tokenRow: Row | nul
   const prisma = {
     users: {
       findUnique: jest.fn().mockResolvedValue(dbUser),
+      findFirst: jest.fn().mockResolvedValue(null),
       delete: jest.fn().mockReturnValue('delete-op'),
     },
     guardian_consents: {
       upsert: jest.fn().mockResolvedValue({}),
       update: jest.fn().mockImplementation(async ({ data }: { data: Partial<Row> }) => ({ ...row({ sent_at: null }), ...data })),
       findUnique: jest.fn().mockResolvedValue(
-        tokenRow ? { ...tokenRow, users: { id: 'u1', username: 'kid', email: 'kid@example.com', cognito_sub: 'sub-1' } } : null,
+        tokenRow
+          ? {
+              ...tokenRow,
+              users: {
+                id: 'u1',
+                username: 'kid',
+                display_name: 'Kid Name',
+                date_of_birth: new Date('2012-07-14T00:00:00.000Z'),
+                email: 'kid@example.com',
+                cognito_sub: 'sub-1',
+              },
+            }
+          : null,
       ),
+      findMany: jest.fn().mockResolvedValue([]),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     moderation_actions: { create: jest.fn().mockReturnValue('audit-op') },
@@ -61,10 +80,11 @@ function makeService(dbUser: ReturnType<typeof user> | null, tokenRow: Row | nul
   const moderation = { invalidateStatus: jest.fn() };
   const env: Record<string, string> = { AWS_REGION: 'eu-north-1', COGNITO_USER_POOL_ID: 'pool-1', PUBLIC_BASE_URL: 'https://api.test/' };
   const config = { get: (key: string) => env[key] };
-  const service = new ConsentService(prisma as any, email as any, moderation as any, config as any);
+  const push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
+  const service = new ConsentService(prisma as any, email as any, moderation as any, config as any, push as any);
   const cognito = { send: jest.fn().mockResolvedValue({}) };
   (service as any).cognito = cognito;
-  return { service, prisma, email, moderation, cognito };
+  return { service, prisma, email, moderation, cognito, push };
 }
 
 function sentLink(email: { send: jest.Mock }): string {
@@ -108,6 +128,8 @@ describe('ConsentService.setGuardian', () => {
 
     expect(email.send.mock.calls[0][0].to).toBe('parent@example.com');
     expect(email.send.mock.calls[0][0].subject).toContain('@kid');
+    expect(email.send.mock.calls[0][0].text).toContain('Kid Name');
+    expect(email.send.mock.calls[0][0].text).toContain('14 July 2012');
     expect(prisma.guardian_consents.update.mock.calls[1][0]).toEqual({ where: { user_id: 'u1' }, data: { sent_at: NOW } });
     expect(result).toEqual({ guardian_email: 'parent@example.com', sent_at: NOW, confirmed_at: null });
   });
@@ -281,10 +303,82 @@ describe('ConsentService.decline', () => {
 describe('ConsentService.lookup', () => {
   it('describes the link for the page', async () => {
     const valid = makeService(user(), row());
-    await expect(valid.service.lookup(VALID_TOKEN, NOW)).resolves.toEqual({ state: 'valid', username: 'kid' });
+    await expect(valid.service.lookup(VALID_TOKEN, NOW)).resolves.toEqual({
+      state: 'valid',
+      username: 'kid',
+      displayName: 'Kid Name',
+      dateOfBirth: new Date('2012-07-14T00:00:00.000Z'),
+    });
     const expired = makeService(user(), row({ token_expires_at: new Date(NOW.getTime() - 1) }));
     await expect(expired.service.lookup(VALID_TOKEN, NOW)).resolves.toEqual({ state: 'expired' });
     const unknown = makeService(user(), null);
     await expect(unknown.service.lookup(VALID_TOKEN, NOW)).resolves.toEqual({ state: 'invalid' });
+  });
+});
+
+describe('ConsentService from the parent or guardian account', () => {
+  const adult = { id: 'a1', email: 'Parent@Example.com', date_of_birth: new Date('1985-01-01T00:00:00.000Z') };
+  const teen = { id: 'a2', email: 'parent@example.com', date_of_birth: new Date('2009-01-01T00:00:00.000Z') };
+
+  function forAdult(approver: typeof adult, consent: Row | null = row()) {
+    const made = makeService(null);
+    const kid = { id: 'u1', username: 'kid', email: 'kid@example.com', cognito_sub: 'sub-1' };
+    made.prisma.users.findUnique.mockImplementation(async ({ where }: any) => (where.id === approver.id ? approver : where.id === 'u1' ? kid : null));
+    made.prisma.guardian_consents.findUnique.mockResolvedValue(consent);
+    return made;
+  }
+
+  it('lists pending children who gave the adult\'s email, with their date of birth', async () => {
+    const { service, prisma } = forAdult(adult);
+    prisma.guardian_consents.findMany.mockResolvedValue([
+      {
+        sent_at: NOW,
+        users: { id: 'u1', username: 'kid', display_name: 'Kid Name', profile_image_url: null, date_of_birth: new Date('2012-07-14T00:00:00.000Z') },
+      },
+    ]);
+    await expect(service.pendingFor('a1')).resolves.toEqual([
+      { userId: 'u1', username: 'kid', displayName: 'Kid Name', avatarUrl: null, dateOfBirth: '2012-07-14', requestedAt: NOW },
+    ]);
+    expect(prisma.guardian_consents.findMany.mock.calls[0][0].where).toEqual({
+      guardian_email: 'parent@example.com',
+      confirmed_at: null,
+      sent_at: { not: null },
+    });
+  });
+
+  it('shows nothing to an account under 18', async () => {
+    const { service, prisma } = forAdult(teen);
+    await expect(service.pendingFor('a2')).resolves.toEqual([]);
+    expect(prisma.guardian_consents.findMany).not.toHaveBeenCalled();
+  });
+
+  it('confirms only a pending child who gave this email, even after the link expired', async () => {
+    const { service, prisma, moderation } = forAdult(adult, row({ token_expires_at: new Date(NOW.getTime() - 1) }));
+    await service.confirmFor('a1', 'u1', NOW);
+    expect(prisma.guardian_consents.updateMany).toHaveBeenCalledWith({
+      where: { user_id: 'u1', guardian_email: 'parent@example.com', confirmed_at: null },
+      data: { confirmed_at: NOW, token_hash: null, token_expires_at: null },
+    });
+    expect(moderation.invalidateStatus).toHaveBeenCalledWith('u1');
+
+    const other = forAdult(adult, row({ guardian_email: 'someone@example.com' }));
+    await expect(other.service.confirmFor('a1', 'u1', NOW)).rejects.toBeInstanceOf(NotFoundException);
+    const done = forAdult(adult, row({ confirmed_at: NOW }));
+    await expect(done.service.confirmFor('a1', 'u1', NOW)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('declining deletes the child account and its login', async () => {
+    const { service, prisma, cognito } = forAdult(adult);
+    await service.declineFor('a1', 'u1');
+    expect(cognito.send).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).toHaveBeenCalledWith(['audit-op', 'delete-op']);
+  });
+
+  it('pushes the adult account when a link is sent to its email', async () => {
+    const { service, prisma, push } = makeService(user());
+    prisma.users.findFirst.mockResolvedValue({ id: 'a1', date_of_birth: adult.date_of_birth });
+    await service.setGuardian('u1', 'parent@example.com', NOW);
+    await new Promise((r) => setImmediate(r));
+    expect(push.sendToUser).toHaveBeenCalledWith('a1', expect.objectContaining({ data: { url: '/(tabs)/activity', type: 'CONSENT_REQUEST' } }));
   });
 });

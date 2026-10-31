@@ -7,6 +7,13 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
+// Shown to the parent or guardian so they can check the age the child gave.
+export function formatDob(dob: Date): string {
+  return dob.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+export type ConsentChild = { username: string; displayName: string; dateOfBirth: Date };
+
 function layout(title: string, body: string): string {
   return `<!doctype html>
 <html lang="en">
@@ -36,13 +43,14 @@ ${body}
 
 // The page behind the emailed link. Only the two POST buttons change anything, so a mail
 // scanner that prefetches the link cannot consume it.
-export function reviewPage(input: { username: string; token: string }): string {
+export function reviewPage(input: ConsentChild & { token: string }): string {
   const u = escapeHtml(input.username);
   const base = `/consent/${encodeURIComponent(input.token)}`;
   return layout(
     'Confirm consent',
     `<h1>@${u} wants to join ${APP_NAME}</h1>
 <p>${APP_NAME} is a football discussion app for under-16s. @${u} said they are between 13 and 15 and gave your email address as their parent or guardian's.</p>
+<p>Name: <strong>${escapeHtml(input.displayName)}</strong><br>Date of birth: <strong>${formatDob(input.dateOfBirth)}</strong><br>Please check these are right.</p>
 <p>Accounts in this age group get: posts other members can see, private messages only with people who follow them back and are in the same age group, a word filter and image checks, and human moderation. No ads, no location, no tracking.</p>
 <p>Until you confirm, the account cannot be used.</p>
 <form method="post" action="${base}/confirm"><button class="confirm" type="submit">Yes, I give my consent</button></form>
@@ -74,17 +82,18 @@ export function messagePage(kind: MessageKind): string {
   return layout(c.title, `<h1>${escapeHtml(c.title)}</h1>\n<p>${escapeHtml(c.body)}</p>`);
 }
 
-export function consentEmail(input: { username: string; link: string }): { subject: string; text: string; html: string } {
+export function consentEmail(input: ConsentChild & { link: string }): { subject: string; text: string; html: string } {
   const u = input.username;
   const subject = `${APP_NAME}: confirm @${u} can use the app`;
   const paragraphs = [
     'Hi,',
     `@${u} has signed up to ${APP_NAME}, a football discussion app for under-16s, and gave this address as their parent or guardian's email.`,
+    `They gave their name as ${input.displayName} and their date of birth as ${formatDob(input.dateOfBirth)}. Please check these are right.`,
     `${APP_NAME} is for ages 13 and up. Junior accounts (13 to 15) can post about football and message only people who follow them back in the same age group. Posts go through a word filter and image checks, and there is human moderation. No ads, no location, no tracking.`,
-    'To let them use the app, open this link and tap Confirm:',
+    `To let them use the app, open this link and tap Confirm. If you have a ${APP_NAME} account with this email, you can also approve them from the Activity tab in the app:`,
     input.link,
     `If you don't want them to use ${APP_NAME}, the same page lets you delete the account.`,
-    "The link works once and expires in 7 days. If you weren't expecting this email, you can ignore it: the account stays locked until a guardian confirms.",
+    "The link works once and expires in 7 days. If you weren't expecting this email, you can ignore it: the account stays locked until a parent or guardian confirms.",
   ];
   const text = paragraphs.join('\n\n');
   const html = paragraphs
